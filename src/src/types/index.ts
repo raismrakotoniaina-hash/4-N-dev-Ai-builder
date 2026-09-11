@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-
+L
 /**
  * Karazana fichier azo ampiasaina ao amin'ny project.
  * `other` dia mamela format vaovao ampiana any aoriana.
