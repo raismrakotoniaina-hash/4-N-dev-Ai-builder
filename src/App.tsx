@@ -1,30 +1,47 @@
+import { useState } from 'react';
+import { AppLayout } from './components/layout/AppLayout';
+import { Modal } from './components/ui/Modal';
+import { PagePlaceholder } from './components/ui/PagePlaceholder';
+import { navigationItems } from './data/navigation';
+import type { AppView } from './types/app';
+
 function App() {
+  const [activeView, setActiveView] = useState<AppView>('dashboard');
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isNewProjectModalOpen, setIsNewProjectModalOpen] = useState(false);
+
+  const currentPage =
+    navigationItems.find((item) => item.id === activeView) ?? navigationItems[0];
+
   return (
-    <main className="app-loading">
-      <div className="app-loading__glow" />
+    <>
+      <AppLayout
+        activeView={activeView}
+        currentPage={currentPage}
+        isMobileSidebarOpen={isMobileSidebarOpen}
+        isSidebarCollapsed={isSidebarCollapsed}
+        onChangeView={setActiveView}
+        onCloseMobileSidebar={() => setIsMobileSidebarOpen(false)}
+        onNewProject={() => setIsNewProjectModalOpen(true)}
+        onOpenMobileSidebar={() => setIsMobileSidebarOpen(true)}
+        onToggleSidebar={() => setIsSidebarCollapsed((current) => !current)}
+      >
+        <PagePlaceholder page={currentPage} />
+      </AppLayout>
 
-      <section className="app-loading__content">
-        <div className="app-loading__logo">
-          <span className="app-loading__logo-number">4</span>
-          <span className="app-loading__logo-text">N</span>
-        </div>
-
-        <p className="app-loading__eyebrow">AI POWERED DEVELOPMENT</p>
-
-        <h1>
-          4-N-DEV
-          <span>AI BUILDER</span>
-        </h1>
-
-        <p className="app-loading__description">
-          Manomana ny intelligent development workspace...
+      <Modal
+        description="Amin’ny Partie 3 no hampidirina ny form sy ny project templates."
+        isOpen={isNewProjectModalOpen}
+        onClose={() => setIsNewProjectModalOpen(false)}
+        title="Create a new project"
+      >
+        <p className="modal-message">
+          Vonona ny AI workspace. Safidio ny “New Project” rehefa vita ny
+          dashboard sy project setup.
         </p>
-
-        <div className="app-loading__line">
-          <span />
-        </div>
-      </section>
-    </main>
+      </Modal>
+    </>
   );
 }
 
