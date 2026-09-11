@@ -1,3 +1,5 @@
+import type { LucideIcon } from 'lucide-react';
+
 export type AppView =
   | 'dashboard'
   | 'builder'
@@ -9,6 +11,6 @@ export type AppView =
 export interface NavigationItem {
   id: AppView;
   label: string;
-  shortLabel: string;
   description: string;
+  icon: LucideIcon;
 }
