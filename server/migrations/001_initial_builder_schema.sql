@@ -1,6 +1,5 @@
 -- 001_initial_builder_schema.sql
 -- Run only against a dedicated 4N DEV AI Builder database, never the Core database.
-BEGIN;
 
 CREATE TABLE IF NOT EXISTS builder_users (
   id UUID PRIMARY KEY,
@@ -47,7 +46,7 @@ CREATE TABLE IF NOT EXISTS builder_project_files (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   PRIMARY KEY (project_id, path),
   CONSTRAINT builder_project_file_relative_path CHECK (
-    path <> '' AND left(path, 1) <> '/' AND position('\\' in path) = 0
+    path <> '' AND left(path, 1) <> '/' AND position(chr(92) in path) = 0
   )
 );
 CREATE INDEX IF NOT EXISTS builder_project_files_project_idx ON builder_project_files(project_id);
