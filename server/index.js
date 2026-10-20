@@ -1,4 +1,6 @@
 import { createServer } from 'node:http';
+import { createPersistence } from './persistence.js';
+import { createAuthApi } from './auth-api.js';
 import { CORE_API_URL_DEFAULT, normalizeCoreModels } from './model-catalog.js';
 
 const PORT = Number.parseInt(process.env.PORT || '8787', 10);
@@ -23,8 +25,10 @@ function getAllowedOrigins(value = process.env.BUILDER_ALLOWED_ORIGINS || DEFAUL
 export function createBuilderServer({
   fetchImpl = globalThis.fetch,
   coreApiUrl = CORE_API_URL,
-  allowedOrigins = getAllowedOrigins()
+  allowedOrigins = getAllowedOrigins(),
+  store = createPersistence()
 } = {}) {
+  const authApi = createAuthApi({ store, fetchImpl, coreApiUrl });
   return createServer(async (req, res) => {
     const origin = req.headers.origin;
 
@@ -34,13 +38,15 @@ export function createBuilderServer({
 
     if (origin) {
       res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
       res.setHeader('Vary', 'Origin');
     }
 
     if (req.method === 'OPTIONS') {
       res.writeHead(204, {
-        'Access-Control-Allow-Methods': 'GET, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type',
+        'Access-Control-Allow-Credentials': 'true',
         'Access-Control-Max-Age': '600',
         'Vary': 'Origin'
       });
@@ -78,6 +84,9 @@ export function createBuilderServer({
         });
       }
     }
+
+    const handled = await authApi(req, res, url);
+    if (handled !== false) return;
 
     return json(res, 404, { success: false, error: 'Endpoint not found.' });
   });
