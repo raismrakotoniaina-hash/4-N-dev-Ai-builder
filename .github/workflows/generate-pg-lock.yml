@@ -29,4 +29,6 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add package.json package-lock.json
           git commit -m "build: add PostgreSQL driver and lockfile"
-          git push origin feat/builder-backend-foundation
+          git fetch origin feat/builder-backend-foundation
+          git rebase origin/feat/builder-backend-foundation
+          git push origin HEAD:feat/builder-backend-foundation
