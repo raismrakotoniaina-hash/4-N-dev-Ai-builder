@@ -1,5 +1,6 @@
 import { createServer } from 'node:http';
 import { createPersistence } from './persistence.js';
+import { createConfiguredStore } from './store-factory.js';
 import { createAuthApi } from './auth-api.js';
 import { CORE_API_URL_DEFAULT, normalizeCoreModels } from './model-catalog.js';
 
@@ -93,8 +94,19 @@ export function createBuilderServer({
 }
 
 if (process.argv[1] && new URL(import.meta.url).pathname === process.argv[1]) {
-  const server = createBuilderServer();
-  server.listen(PORT, HOST, () => {
-    console.log(`4N DEV AI Builder backend listening on ${HOST}:${PORT}`);
+  createConfiguredStore().then(({ store, pool, backend }) => {
+    const server = createBuilderServer({ store });
+    server.listen(PORT, HOST, () => {
+      console.log(`4N DEV AI Builder backend listening on ${HOST}:${PORT} (persistence: ${backend})`);
+    });
+    const shutdown = () => server.close(async () => {
+      if (pool) await pool.end();
+      process.exit(0);
+    });
+    process.once('SIGTERM', shutdown);
+    process.once('SIGINT', shutdown);
+  }).catch((error) => {
+    console.error(`Builder backend startup failed: ${error.message}`);
+    process.exitCode = 1;
   });
 }
