@@ -9,6 +9,14 @@ export interface NavigationItem {
   icon: LucideIcon;
 }
 
+export interface BuilderModel {
+  id: string;
+  name: string;
+  family: 'Luna' | 'Sol';
+  capability: 'chat' | 'coding';
+  available: boolean;
+}
+
 export interface Project { id: string; name: string; description?: string; status?: string; created_at?: string; updated_at?: string; }
 export interface ProjectFile { id?: string; project_id: string; path: string; content: string; language?: string; }
 export interface Deployment { id: string; project_id: string; status: string; url?: string; created_at?: string; }

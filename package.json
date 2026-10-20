@@ -7,15 +7,19 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "start:server": "node server/index.js",
+    "test:server": "node --test server/*.test.js",
+    "db:migrate": "node server/migrate.js"
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",
-    "vite": "latest",
-    "typescript": "~5.7.2",
+    "lucide-react": "^0.468.0",
+    "pg": "^8.23.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "lucide-react": "^0.468.0"
+    "typescript": "~5.7.2",
+    "vite": "latest"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",

@@ -1142,3 +1142,34 @@ a {
     box-shadow: 0 0 14px rgba(57, 216, 255, 0.1);
   }
   }
+
+
+.builder-model-picker {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0.75rem 0;
+  width: 100%;
+}
+
+.builder-model-picker > span {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.builder-model-picker select {
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--border, #d1d5db);
+  border-radius: 0.65rem;
+  background: var(--card, #fff);
+  color: inherit;
+  font: inherit;
+}
+
+.builder-model-picker small {
+  color: var(--muted, #6b7280);
+  font-size: 0.8rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
