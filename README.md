@@ -20,7 +20,7 @@ Requirements: Node.js 20 or later.
 5. Check models: `GET http://127.0.0.1:8787/api/models`
 6. Run backend tests: `npm run test:server`
 
-The backend currently uses Node.js built-ins only. It defaults to binding on loopback for safer local development.
+The backend uses Node.js built-ins and the `pg` PostgreSQL driver. It defaults to binding on loopback for safer local development.
 
 ## Authentication and persistence foundation
 
