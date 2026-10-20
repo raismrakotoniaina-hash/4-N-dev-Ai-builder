@@ -7,7 +7,7 @@ test('applies Builder migrations transactionally and records applied names', asy
   const executed = [];
   const pool = {
     async query(sql, params = []) {
-      executed.push(sql.trim().slice(0, 80));
+      executed.push(sql.trim());
       if (sql.includes('SELECT name FROM builder_schema_migrations')) {
         return { rows: [...applied].map((name) => ({ name })) };
       }
