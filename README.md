@@ -28,7 +28,13 @@ The backend currently uses Node.js built-ins only. It defaults to binding on loo
 - POST /api/core/connect verifies a user's 4ndev_sk against https://api.4ndev.dev/v1/credits before storing it encrypted with AES-256-GCM. GET /api/core/credits retrieves that user's Core balance directly from Core; Builder does not calculate or own the balance.
 - GET/POST /api/projects, GET/PATCH/DELETE /api/projects/:id, and PUT/DELETE /api/projects/:id/files store projects and files and enforce per-account ownership.
 - Set BUILDER_ENCRYPTION_KEY to a strong random secret (at least 32 bytes) before connecting Core keys. Set BUILDER_DATA_FILE to a private writable path on persistent storage. Never commit either secret or the data file.
-- The current JSON persistence adapter is for development and a single backend process only. It is not safe for multiple replicas or high-concurrency production. Before deployment, replace it with a transactional database adapter and add rate limiting, email verification/password reset, CSRF protections appropriate to the final domain layout, backups and monitoring.
+- PostgreSQL persistence is now implemented as an opt-in backend. Set `DATABASE_URL` to a **dedicated AI Builder database** and set `BUILDER_ENCRYPTION_KEY` before starting the backend. Do not point it at the Core database. The JSON adapter remains only as a local development fallback when `DATABASE_URL` is empty.
+
+- Review `server/migrations/001_initial_builder_schema.sql` before applying it.
+- Run `npm run db:migrate` explicitly to create/update the Builder schema. The server does not automatically run migrations at startup.
+- The PostgreSQL adapter stores password hashes, hashed session tokens, encrypted Core keys, projects and files in separate tables, with foreign keys and per-user ownership checks.
+- Before production deployment, add rate limiting, email verification/password reset, a final CSRF/domain review, database backups/monitoring and a sandboxed build-execution design.
+- Never put the database password or `BUILDER_ENCRYPTION_KEY` in the browser, `VITE_*` variables, or Git.
 - AI generation, sandboxed builds, tests, repair and previews remain disabled until the production persistence/security review and a safe build-execution design are completed.
 
 The backend defaults to binding on loopback. Production deployment must configure a private upstream listener/reverse proxy, TLS and exact allowed origins. No deployment or VPS changes are performed by these code changes.
