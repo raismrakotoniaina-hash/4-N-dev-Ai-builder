@@ -2,9 +2,9 @@ import { createPersistence } from './persistence.js';
 import { createPostgresPersistence } from './postgres-persistence.js';
 
 export async function createConfiguredStore({ env = process.env } = {}) {
-  if (!env.DATABASE_URL) return { store: createPersistence(), pool: null, backend: 'json' };
-  if (env.NODE_ENV === 'production' && env.BUILDER_ALLOW_JSON_STORE === 'true') {
-    throw new Error('JSON persistence is not allowed in production when DATABASE_URL is configured.');
+  if (!env.DATABASE_URL) {
+    if (env.NODE_ENV === 'production') throw new Error('DATABASE_URL is required in production; JSON persistence is development-only.');
+    return { store: createPersistence(), pool: null, backend: 'json' };
   }
   const { Pool } = await import('pg');
   const pool = new Pool({
