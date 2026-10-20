@@ -51,5 +51,3 @@ CREATE TABLE IF NOT EXISTS builder_project_files (
   )
 );
 CREATE INDEX IF NOT EXISTS builder_project_files_project_idx ON builder_project_files(project_id);
-
-COMMIT;
