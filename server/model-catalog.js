@@ -19,7 +19,11 @@ export function normalizeCoreModels(payload) {
 
   const availableIds = new Set(
     models
-      .filter((model) => model && model.active !== false && model.enabled !== false)
+      .filter((model) => model
+        && model.active !== false
+        && model.enabled !== false
+        && model.status !== 'inactive'
+        && model.status !== 'disabled')
       .map((model) => model.id)
       .filter((id) => typeof id === 'string')
   );

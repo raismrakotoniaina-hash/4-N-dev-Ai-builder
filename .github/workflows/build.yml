@@ -2,11 +2,12 @@ name: AI Builder Build
 
 on:
   push:
-    branches: [main]
+    branches: [main, feat/builder-backend-foundation]
+  pull_request:
   workflow_dispatch:
 
 jobs:
-  build:
+  build-and-test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -16,3 +17,4 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+      - run: npm run test:server

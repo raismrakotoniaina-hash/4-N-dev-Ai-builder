@@ -6,12 +6,12 @@ const corePayload = {
   success: true,
   data: {
     models: [
-      { id: '4n-chat-naya-5.6', active: true },
-      { id: '4n-chat-naya-6', active: true },
-      { id: '4n-code-nael-5.6', active: true },
-      { id: '4n-code-nael-6.1', active: true },
-      { id: 'legacy-model', active: true },
-      { id: 'astra-model', active: true }
+      { id: '4n-chat-naya-5.6', status: 'active' },
+      { id: '4n-chat-naya-6', status: 'active' },
+      { id: '4n-code-nael-5.6', status: 'active' },
+      { id: '4n-code-nael-6.1', status: 'active' },
+      { id: 'legacy-model', status: 'active' },
+      { id: 'astra-model', status: 'active' }
     ]
   }
 };
@@ -25,7 +25,7 @@ test('exposes exactly the four canonical Naya and Nael models', () => {
 
 test('does not expose a model that Core marks inactive', () => {
   const payload = structuredClone(corePayload);
-  payload.data.models[0].active = false;
+  payload.data.models[0].status = 'inactive';
   assert.throws(() => normalizeCoreModels(payload), {
     code: 'CORE_MODEL_CATALOG_INCOMPLETE'
   });
