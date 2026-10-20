@@ -1,0 +1,32 @@
+name: Generate PostgreSQL driver lockfile
+on:
+  push:
+    branches: [feat/builder-backend-foundation]
+    paths:
+      - .github/workflows/generate-pg-lock.yml
+permissions:
+  contents: write
+jobs:
+  update-lock:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/builder-backend-foundation
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Add PostgreSQL driver and update lockfile
+        run: npm install pg@^8.16.3 --save
+      - name: Commit generated dependency lock
+        run: |
+          if git diff --quiet -- package.json package-lock.json; then
+            echo "No lockfile changes."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json
+          git commit -m "build: add PostgreSQL driver and lockfile"
+          git push origin feat/builder-backend-foundation
