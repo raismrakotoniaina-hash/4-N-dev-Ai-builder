@@ -17,7 +17,7 @@ test('applies Builder migrations transactionally and records applied names', asy
     async connect() {
       return {
         async query(sql, params = []) {
-          executed.push(sql.trim().slice(0, 80));
+          executed.push(sql.trim());
           if (sql.includes('INSERT INTO builder_schema_migrations')) applied.add(params[0]);
           return { rows: [] };
         },
