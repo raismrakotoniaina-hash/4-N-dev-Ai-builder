@@ -120,7 +120,7 @@ export function createAuthApi({ store, fetchImpl = globalThis.fetch, coreApiUrl 
         }
         let payload = {};
         try { payload = await response.json(); } catch {}
-        if (!response.ok || payload.success === false) {
+        if (!response.ok || payload.success !== true) {
           return json(res, 401, { success: false, error: 'Core rejected this key. Check it in Core Console.' });
         }
         try { await store.connectCoreKey(user.id, apiKey); }
