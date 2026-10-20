@@ -144,7 +144,7 @@ export function createAuthApi({ store, fetchImpl = globalThis.fetch, coreApiUrl 
             signal: AbortSignal.timeout(8000)
           });
           const payload = await response.json();
-          if (!response.ok || payload.success === false) {
+          if (!response.ok || payload.success !== true) {
             await store.disconnectCoreKey(user.id);
             return json(res, 401, { success: false, error: 'Core key is no longer valid. Reconnect it in settings.' });
           }
