@@ -3,7 +3,8 @@ import { AppLayout } from './components/layout/AppLayout';
 import { Modal } from './components/ui/Modal';
 import { navigationItems } from './data/navigation';
 import { builderApi, type BuilderUser } from './lib/builderApi';
-import type { AppView, BuilderModel, Project, ProjectFile } from './types/app';
+import type { AppView, Project, ProjectFile } from './types/app';
+import { useLanguage } from './lib/i18n';
 
 type ProjectWithFiles = Project & { files?: ProjectFile[]; fileCount?: number };
 
@@ -12,9 +13,7 @@ function App() {
   const [mobile, setMobile] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [modal, setModal] = useState(false);
-  const [models, setModels] = useState<BuilderModel[]>([]);
-  const [selectedModel, setSelectedModel] = useState('');
-  const [modelStatus, setModelStatus] = useState('Mikaroka ireo modely Core…');
+  const { t } = useLanguage();
   const [user, setUser] = useState<BuilderUser | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [selected, setSelected] = useState<ProjectWithFiles | null>(null);
@@ -30,6 +29,7 @@ function App() {
   const [settingsMessage, setSettingsMessage] = useState('');
 
   const currentPage = navigationItems.find((item) => item.id === activeView) ?? navigationItems[0];
+  const translatedPage = { ...currentPage, label: t(currentPage.label), description: t(currentPage.description) };
 
   async function refreshProjects() {
     const items = await builderApi.listProjects();
@@ -38,14 +38,6 @@ function App() {
 
   useEffect(() => {
     let active = true;
-    builderApi.listModels().then((items) => {
-      if (!active) return;
-      setModels(items);
-      setSelectedModel(items[0]?.id || '');
-      setModelStatus(items.length + ' modely Core azo ampiasaina');
-    }).catch((error: unknown) => {
-      if (active) setModelStatus(error instanceof Error ? error.message : 'Tsy afaka naka modely Core.');
-    });
     builderApi.me().then(async (currentUser) => {
       if (!active) return;
       setUser(currentUser);
@@ -149,20 +141,11 @@ function App() {
     }
   }
 
-  const modelPicker = (
-    <label className="builder-model-picker">
-      <span>Modely AI</span>
-      <select value={selectedModel} onChange={(event) => setSelectedModel(event.target.value)} disabled={!models.length || busy}>
-        {!models.length && <option value="">Ampifandraiso ny backend Builder</option>}
-        {models.map((model) => <option key={model.id} value={model.id}>{model.name} — {model.family}</option>)}
-      </select>
-      <small>{modelStatus}</small>
-    </label>
-  );
+  const modelPicker = null;
 
   return (
     <>
-      <AppLayout activeView={activeView} currentPage={currentPage} isMobileSidebarOpen={mobile}
+      <AppLayout activeView={activeView} currentPage={translatedPage} isMobileSidebarOpen={mobile}
         isSidebarCollapsed={collapsed} onChangeView={setActiveView}
         onCloseMobileSidebar={() => setMobile(false)} onOpenMobileSidebar={() => setMobile(true)}
         onToggleSidebar={() => setCollapsed((value) => !value)} onNewProject={() => setModal(true)}>
@@ -199,7 +182,7 @@ function App() {
                 <div className="workspace-card"><h3>Tetikasa</h3><strong>{projects.length}</strong><p>Voatahiry isaky ny kaonty.</p>
                   {projects.slice(0, 5).map((project) => <button className="project-row" key={project.id} onClick={() => openProject(project)}>{project.name}</button>)}
                 </div>
-                <div className="workspace-card"><h3>Core services</h3><p>Model catalogue · Core balance · Project storage</p><span className="core-badge">CORE CONNECT {coreConnected ? 'CONNECTED' : 'REQUIRED'}</span></div>
+                <div className="workspace-card"><h3>Core services</h3><p>Core balance · Project storage</p><span className="core-badge">CORE CONNECT {coreConnected ? 'CONNECTED' : 'REQUIRED'}</span></div>
               </section>}
 
               {activeView === 'builder' && <section className="workspace-card"><h2>AI Builder</h2>{modelPicker}<textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder="Farito ny zavatra tianao hatsangana…" /><button disabled={busy || !prompt.trim()} onClick={createProject}>{busy ? 'Mitahiry…' : 'Mamorona sy mitahiry tetikasa'}</button><p>Ny famoronana kaody AI dia mbola tsy alefa amin’ity dingana ity.</p></section>}
@@ -216,7 +199,6 @@ function App() {
                 {coreConnected && <><button disabled={busy} onClick={loadCoreCredits}>Jereo ny balance Core</button><button className="project-row" disabled={busy} onClick={async () => { await builderApi.disconnectCore(); setCoreConnected(false); setCoreCredits(''); setSettingsMessage('Nesorina ny fifandraisana Core.'); }}>Esory ny fifandraisana</button></>}
                 {settingsMessage && <p>{settingsMessage}</p>}
                 {coreCredits && <pre>{coreCredits}</pre>}
-                <p>{modelStatus}</p>
               </section>}
 
               {!['dashboard', 'builder', 'projects', 'files', 'settings'].includes(activeView) && <section className="workspace-card"><h2>{currentPage.label}</h2><p>Hovelarina aorian’ny fametrahana ny pipeline build voaaro sy preview mitokana.</p></section>}
