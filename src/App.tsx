@@ -152,7 +152,7 @@ function App() {
         <div className="ai-builder-workspace">
           <div className="workspace-header">
             <div><span className="eyebrow">4N DEV CORE</span><h1>{currentPage.label}</h1><p>{t('AI Builder — kaonty manokana, Core balance manokana.')}</p></div>
-            <div className="workspace-status">{message}</div>
+            <div className="workspace-status">{t(message)}</div>
           </div>
 
           {!user ? (
@@ -185,16 +185,16 @@ function App() {
                 <div className="workspace-card"><h3>{t('Serivisy Core')}</h3><p>Core balance · Project storage</p><span className="core-badge">CORE CONNECT {coreConnected ? 'CONNECTED' : 'REQUIRED'}</span></div>
               </section>}
 
-              {activeView === 'builder' && <section className="workspace-card"><h2>{t('AI Builder')}</h2>{modelPicker}<textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder={t('Farito ny zavatra tianao hatsangana…')} /><button disabled={busy || !prompt.trim()} onClick={createProject}>{busy ? t('Mitahiry…') : t('Mamorona sy mitahiry tetikasa')}</button><p>Ny famoronana kaody AI dia mbola tsy alefa amin’ity dingana ity.</p></section>}
+              {activeView === 'builder' && <section className="workspace-card"><h2>{t('AI Builder')}</h2>{modelPicker}<textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder={t('Farito ny zavatra tianao hatsangana…')} /><button disabled={busy || !prompt.trim()} onClick={createProject}>{busy ? t('Mitahiry…') : t('Mamorona sy mitahiry tetikasa')}</button><p>{t('Ny famoronana kaody AI dia mbola tsy alefa amin’ity dingana ity.')}</p></section>}
 
-              {activeView === 'projects' && <section className="workspace-card"><h2>{t('Ny tetikasako')}</h2><p>Tehirizina ao amin’ny backend, ary ny tompony ihany no mahazo azy.</p>{projects.map((project) => <button className="project-row" key={project.id} onClick={() => openProject(project)}>{project.name}</button>)}{!projects.length && <p>Tsy mbola misy tetikasa.</p>}</section>}
+              {activeView === 'projects' && <section className="workspace-card"><h2>{t('Ny tetikasako')}</h2><p>{t('Tehirizina ao amin’ny backend, ary ny tompony ihany no mahazo azy.')}</p>{projects.map((project) => <button className="project-row" key={project.id} onClick={() => openProject(project)}>{project.name}</button>)}{!projects.length && <p>Tsy mbola misy tetikasa.</p>}</section>}
 
-              {activeView === 'files' && <section className="workspace-card"><h2>{selected?.name || t('Rakitra tetikasa')}</h2>{selected?.files?.length ? selected.files.map((file) => <div className="file-row" key={file.path}><code>{file.path}</code><span>{file.content.length} chars</span></div>) : <p>{selected ? 'Mbola tsy misy rakitra voatahiry ao amin’ity tetikasa ity.' : 'Misafidiana tetikasa ao amin’ny Projects.'}</p>}</section>}
+              {activeView === 'files' && <section className="workspace-card"><h2>{selected?.name || t('Rakitra tetikasa')}</h2>{selected?.files?.length ? selected.files.map((file) => <div className="file-row" key={file.path}><code>{file.path}</code><span>{file.content.length} chars</span></div>) : <p>{t(selected ? 'Mbola tsy misy rakitra voatahiry ao amin’ity tetikasa ity.' : 'Misafidiana tetikasa ao amin’ny Projects.')}</p>}</section>}
 
               {activeView === 'settings' && <section className="workspace-card">
                 <h2>{t('Fampifandraisana 4N DEV Core')}</h2>
-                <p>Core API: <code>https://api.4ndev.dev</code>. Ny Core no mitantana ny balance sy billing. Tsy tehirizina ao amin’ny navigateur ny lakile.</p>
-                <p>Toetry ny fifandraisana: <strong>{t(coreConnected ? 'Mifandray' : 'Tsy mbola mifandray')}</strong></p>
+                <p>{t('Core API:')} <code>https://api.4ndev.dev</code>. {t('Ny Core no mitantana ny balance sy billing. Tsy tehirizina ao amin’ny navigateur ny lakile.')}</p>
+                <p>{t('Toetry ny fifandraisana')}: <strong>{t(coreConnected ? 'Mifandray' : 'Tsy mbola mifandray')}</strong></p>
                 {!coreConnected && <><label>4N DEV Core secret key<input type="password" autoComplete="off" value={coreKey} onChange={(event) => setCoreKey(event.target.value)} placeholder="4ndev_sk_…" /></label><button disabled={busy || !coreKey.trim()} onClick={connectCore}>{busy ? t('Manamarina…') : t('Ampifandraiso ny Core')}</button></>}
                 {coreConnected && <><button disabled={busy} onClick={loadCoreCredits}>{t('Jereo ny balance Core')}</button><button className="project-row" disabled={busy} onClick={async () => { await builderApi.disconnectCore(); setCoreConnected(false); setCoreCredits(''); setSettingsMessage('Nesorina ny fifandraisana Core.'); }}>{t('Esory ny fifandraisana')}</button></>}
                 {settingsMessage && <p>{settingsMessage}</p>}
