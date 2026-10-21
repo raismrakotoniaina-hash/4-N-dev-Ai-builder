@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 export type Language = 'en' | 'fr' | 'mg';
 
@@ -94,7 +94,9 @@ const dictionaries: Record<Language, Record<string, string>> = {
   },
 };
 
-export function useLanguage() {
+const LanguageContext = createContext<ReturnType<typeof useLanguageValue> | null>(null);
+
+function useLanguageValue() {
   const [language, setLanguageState] = useState<Language>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
@@ -115,5 +117,16 @@ export function useLanguage() {
 
   const setLanguage = (next: Language) => setLanguageState(next);
   const t = (text: string) => dictionaries[language][text] ?? text;
-  return { language, setLanguage, t };
+  return useMemo(() => ({ language, setLanguage, t }), [language]);
+}
+
+export function LanguageProvider({ children }: { children: ReactNode }) {
+  const value = useLanguageValue();
+  return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>;
+}
+
+export function useLanguage() {
+  const value = useContext(LanguageContext);
+  if (!value) throw new Error('useLanguage must be used inside LanguageProvider');
+  return value;
 }
