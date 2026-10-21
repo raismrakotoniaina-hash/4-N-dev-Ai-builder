@@ -1,0 +1,119 @@
+import { useEffect, useState } from 'react';
+
+export type Language = 'en' | 'fr' | 'mg';
+
+const STORAGE_KEY = '4n-builder-language';
+
+const dictionaries: Record<Language, Record<string, string>> = {
+  mg: {},
+  en: {
+    'Fiteny': 'Language',
+    'Dashboard': 'Dashboard',
+    'AI Builder': 'AI Builder',
+    'Code': 'Code',
+    'Preview': 'Preview',
+    'Files': 'Files',
+    'My Projects': 'My Projects',
+    'Settings': 'Settings',
+    'Help Center': 'Help Center',
+    'New Project': 'New Project',
+    'Overview an’ny workspace': 'Workspace overview',
+    'Mamorona app amin’ny prompt': 'Create an app from a prompt',
+    'Jereo sy ovay ny code': 'View and edit code',
+    'Live preview an’ilay app': 'Live app preview',
+    'Project file explorer': 'Project file explorer',
+    'Projects voatahiry': 'Saved projects',
+    'Midira na mamoròna kaonty hanombohana.': 'Sign in or create an account to get started.',
+    'Tafiditra soa aman-tsara.': 'Signed in successfully.',
+    'Hivoaka': 'Sign out',
+    'Tetikasa': 'Projects',
+    'Ny tetikasako': 'My projects',
+    'Rakitra tetikasa': 'Project files',
+    'Fampifandraisana 4N DEV Core': '4N DEV Core connection',
+    'Ampifandraiso ny Core': 'Connect Core',
+    'Jereo ny balance Core': 'View Core balance',
+    'Esory ny fifandraisana': 'Disconnect',
+    'Mamorona kaonty': 'Create account',
+    'Hiditra': 'Sign in',
+    'Email': 'Email',
+    'Teny miafina': 'Password',
+    'Farito ny tetikasanao.': 'Describe your project.',
+    'Mamorona sy mitahiry tetikasa': 'Create and save project',
+    'Tetikasa AI vaovao': 'New AI project',
+    'Farito ny zavatra tianao hatsangana…': 'Describe what you want to build…',
+    'Mamorona sy mitahiry': 'Create and save',
+    'Tsy mbola misy tetikasa.': 'No projects yet.',
+    'Mifandray': 'Connected',
+    'Tsy mbola mifandray': 'Not connected',
+    'Tsy afaka nitahiry ny tetikasa.': 'Could not save the project.',
+    'Tsy nahomby ny fidirana.': 'Sign-in failed.',
+    'Tsy afaka nivoaka.': 'Could not sign out.',
+  },
+  fr: {
+    'Fiteny': 'Langue',
+    'Dashboard': 'Tableau de bord',
+    'AI Builder': 'AI Builder',
+    'Code': 'Code',
+    'Preview': 'Aperçu',
+    'Files': 'Fichiers',
+    'My Projects': 'Mes projets',
+    'Settings': 'Paramètres',
+    'Help Center': 'Centre d’aide',
+    'New Project': 'Nouveau projet',
+    'Overview an’ny workspace': 'Vue d’ensemble de l’espace de travail',
+    'Mamorona app amin’ny prompt': 'Créer une application à partir d’une instruction',
+    'Jereo sy ovay ny code': 'Voir et modifier le code',
+    'Live preview an’ilay app': 'Aperçu en direct de l’application',
+    'Project file explorer': 'Explorateur de fichiers du projet',
+    'Projects voatahiry': 'Projets enregistrés',
+    'Midira na mamoròna kaonty hanombohana.': 'Connectez-vous ou créez un compte pour commencer.',
+    'Tafiditra soa aman-tsara.': 'Connexion réussie.',
+    'Hivoaka': 'Déconnexion',
+    'Tetikasa': 'Projets',
+    'Ny tetikasako': 'Mes projets',
+    'Rakitra tetikasa': 'Fichiers du projet',
+    'Fampifandraisana 4N DEV Core': 'Connexion à 4N DEV Core',
+    'Ampifandraiso ny Core': 'Connecter Core',
+    'Jereo ny balance Core': 'Voir le solde Core',
+    'Esory ny fifandraisana': 'Déconnecter',
+    'Mamorona kaonty': 'Créer un compte',
+    'Hiditra': 'Se connecter',
+    'Email': 'E-mail',
+    'Teny miafina': 'Mot de passe',
+    'Farito ny tetikasanao.': 'Décrivez votre projet.',
+    'Mamorona sy mitahiry tetikasa': 'Créer et enregistrer le projet',
+    'Tetikasa AI vaovao': 'Nouveau projet IA',
+    'Farito ny zavatra tianao hatsangana…': 'Décrivez ce que vous souhaitez créer…',
+    'Mamorona sy mitahiry': 'Créer et enregistrer',
+    'Tsy mbola misy tetikasa.': 'Aucun projet pour le moment.',
+    'Mifandray': 'Connecté',
+    'Tsy mbola mifandray': 'Non connecté',
+    'Tsy afaka nitahiry ny tetikasa.': 'Impossible d’enregistrer le projet.',
+    'Tsy nahomby ny fidirana.': 'Échec de la connexion.',
+    'Tsy afaka nivoaka.': 'Impossible de se déconnecter.',
+  },
+};
+
+export function useLanguage() {
+  const [language, setLanguageState] = useState<Language>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      return saved === 'en' || saved === 'fr' || saved === 'mg' ? saved : 'mg';
+    } catch {
+      return 'mg';
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, language);
+    } catch {
+      // Keep the selected language for this session if storage is unavailable.
+    }
+    document.documentElement.lang = language;
+  }, [language]);
+
+  const setLanguage = (next: Language) => setLanguageState(next);
+  const t = (text: string) => dictionaries[language][text] ?? text;
+  return { language, setLanguage, t };
+}
