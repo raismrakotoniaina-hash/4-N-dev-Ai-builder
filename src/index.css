@@ -1173,3 +1173,9 @@ a {
   line-height: 1.4;
   overflow-wrap: anywhere;
 }
+
+
+.language-selector { display: flex; align-items: center; gap: 6px; color: var(--text-secondary); font-size: 0.72rem; }
+.language-selector span { white-space: nowrap; }
+.language-selector select { max-width: 112px; min-height: 34px; padding: 4px 7px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-solid); color: var(--text-primary); font: inherit; }
+@media (max-width: 420px) { .language-selector span { display: none; } .language-selector select { max-width: 94px; } .topbar__action-button { display: none; } }
