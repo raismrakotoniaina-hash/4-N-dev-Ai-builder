@@ -3,7 +3,7 @@ import { AppLayout } from './components/layout/AppLayout';
 import { Modal } from './components/ui/Modal';
 import { navigationItems } from './data/navigation';
 import { builderApi, type BuilderUser } from './lib/builderApi';
-import type { AppView, BuilderModel, Project, ProjectFile } from './types/app';
+import type { AppView, Project, ProjectFile } from './types/app';
 
 type ProjectWithFiles = Project & { files?: ProjectFile[]; fileCount?: number };
 
@@ -12,9 +12,6 @@ function App() {
   const [mobile, setMobile] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [modal, setModal] = useState(false);
-  const [models, setModels] = useState<BuilderModel[]>([]);
-  const [selectedModel, setSelectedModel] = useState('');
-  const [modelStatus, setModelStatus] = useState('Mikaroka ireo modely Core…');
   const [user, setUser] = useState<BuilderUser | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [selected, setSelected] = useState<ProjectWithFiles | null>(null);
@@ -38,14 +35,6 @@ function App() {
 
   useEffect(() => {
     let active = true;
-    builderApi.listModels().then((items) => {
-      if (!active) return;
-      setModels(items);
-      setSelectedModel(items[0]?.id || '');
-      setModelStatus(items.length + ' modely Core azo ampiasaina');
-    }).catch((error: unknown) => {
-      if (active) setModelStatus(error instanceof Error ? error.message : 'Tsy afaka naka modely Core.');
-    });
     builderApi.me().then(async (currentUser) => {
       if (!active) return;
       setUser(currentUser);
@@ -95,20 +84,22 @@ function App() {
 
   async function createProject() {
     if (!prompt.trim() || !user) return;
+    if (!coreConnected) { setMessage('Ampifandraiso amin’ny Settings aloha ny 4N DEV Core API key.'); setActiveView('settings'); setModal(false); return; }
     setBusy(true);
     try {
-      const project = await builderApi.createProject(prompt.trim().slice(0, 120), prompt.trim());
+      const description = prompt.trim();
+      const project = await builderApi.createProject(description.slice(0, 120), description.slice(0, 2000));
+      setMessage('Mamorona ny rakitra amin’ny alalan’ny 4N DEV Core…');
+      const generated = await builderApi.generateProject(project.id, description);
       await refreshProjects();
-      setSelected(project);
-      setPrompt('');
-      setModal(false);
-      setActiveView('projects');
-      setMessage('Voatahiry ilay tetikasa. Mbola tsy alefa ny famoronana kaody AI mandra-pahavitan’ny fiarovana sy ny build sandbox.');
+      setSelected(generated.project as ProjectWithFiles);
+      setPrompt(''); setModal(false); setActiveView('files');
+      const cost = typeof generated.usage?.charged_usd === 'number' ? ' | Core charge: $' + generated.usage.charged_usd.toFixed(4) : '';
+      setMessage('Vita ny génération. Rakitra noforonina: ' + generated.generatedFiles.length + cost);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Tsy afaka nitahiry ny tetikasa.');
-    } finally {
-      setBusy(false);
-    }
+      setMessage(error instanceof Error ? error.message : 'Tsy nahomby ny génération; mety mbola voatahiry ilay tetikasa.');
+      await refreshProjects().catch(() => {});
+    } finally { setBusy(false); }
   }
 
   async function openProject(project: Project) {
@@ -149,17 +140,6 @@ function App() {
     }
   }
 
-  const modelPicker = (
-    <label className="builder-model-picker">
-      <span>Modely AI</span>
-      <select value={selectedModel} onChange={(event) => setSelectedModel(event.target.value)} disabled={!models.length || busy}>
-        {!models.length && <option value="">Ampifandraiso ny backend Builder</option>}
-        {models.map((model) => <option key={model.id} value={model.id}>{model.name} — {model.family}</option>)}
-      </select>
-      <small>{modelStatus}</small>
-    </label>
-  );
-
   return (
     <>
       <AppLayout activeView={activeView} currentPage={currentPage} isMobileSidebarOpen={mobile}
@@ -191,10 +171,9 @@ function App() {
               {activeView === 'dashboard' && <section className="workspace-grid">
                 <div className="workspace-card workspace-hero">
                   <span className="eyebrow">BUILD WITH AI</span><h2>Farito ny tetikasanao.</h2>
-                  <p>Ny dingana manaraka rehefa vonona ny pipeline: Plan → Generate → Build → Test → Repair → Preview.</p>
-                  {modelPicker}
+                  <p>Plan → Generate files → Save to project. Ny Core no mitantana ny modely sy billing.</p>
                   <textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder="Ohatra: Mamoròna boutique misy catalogue, panier ary espace admin…" />
-                  <button disabled={busy || !prompt.trim()} onClick={createProject}>{busy ? 'Mitahiry…' : 'Mamorona sy mitahiry tetikasa'}</button>
+                  <button disabled={busy || !prompt.trim()} onClick={createProject}>{busy ? 'Mamorona amin’ny AI…' : 'Mamorona application amin’ny AI'}</button>
                 </div>
                 <div className="workspace-card"><h3>Tetikasa</h3><strong>{projects.length}</strong><p>Voatahiry isaky ny kaonty.</p>
                   {projects.slice(0, 5).map((project) => <button className="project-row" key={project.id} onClick={() => openProject(project)}>{project.name}</button>)}
@@ -202,11 +181,11 @@ function App() {
                 <div className="workspace-card"><h3>Core services</h3><p>Model catalogue · Core balance · Project storage</p><span className="core-badge">CORE CONNECT {coreConnected ? 'CONNECTED' : 'REQUIRED'}</span></div>
               </section>}
 
-              {activeView === 'builder' && <section className="workspace-card"><h2>AI Builder</h2>{modelPicker}<textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder="Farito ny zavatra tianao hatsangana…" /><button disabled={busy || !prompt.trim()} onClick={createProject}>{busy ? 'Mitahiry…' : 'Mamorona sy mitahiry tetikasa'}</button><p>Ny famoronana kaody AI dia mbola tsy alefa amin’ity dingana ity.</p></section>}
+              {activeView === 'builder' && <section className="workspace-card"><h2>AI Builder</h2><textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder="Farito ny zavatra tianao hatsangana…" /><button disabled={busy || !prompt.trim()} onClick={createProject}>{busy ? 'Mitahiry…' : 'Mamorona sy mitahiry tetikasa'}</button><p>Ny AI Builder no mandrindra ny modely Core ao ambadika.</p></section>}
 
               {activeView === 'projects' && <section className="workspace-card"><h2>Ny tetikasako</h2><p>Tehirizina ao amin’ny backend, ary ny tompony ihany no mahazo azy.</p>{projects.map((project) => <button className="project-row" key={project.id} onClick={() => openProject(project)}>{project.name}</button>)}{!projects.length && <p>Tsy mbola misy tetikasa.</p>}</section>}
 
-              {activeView === 'files' && <section className="workspace-card"><h2>{selected?.name || 'Rakitra tetikasa'}</h2>{selected?.files?.length ? selected.files.map((file) => <div className="file-row" key={file.path}><code>{file.path}</code><span>{file.content.length} chars</span></div>) : <p>{selected ? 'Mbola tsy misy rakitra voatahiry ao amin’ity tetikasa ity.' : 'Misafidiana tetikasa ao amin’ny Projects.'}</p>}</section>}
+              {activeView === 'files' && <section className="workspace-card"><h2>{selected?.name || 'Rakitra tetikasa'}</h2>{selected?.files?.length ? selected.files.map((file) => <div className="file-row" key={file.path}><code>{file.path}</code><span>{file.content.length} chars</span><details><summary>Jereo ny kaody</summary><pre>{file.content}</pre></details></div>) : <p>{selected ? 'Mbola tsy misy rakitra voatahiry ao amin’ity tetikasa ity.' : 'Misafidiana tetikasa ao amin’ny Projects.'}</p>}</section>}
 
               {activeView === 'settings' && <section className="workspace-card">
                 <h2>Fampifandraisana 4N DEV Core</h2>
@@ -216,7 +195,6 @@ function App() {
                 {coreConnected && <><button disabled={busy} onClick={loadCoreCredits}>Jereo ny balance Core</button><button className="project-row" disabled={busy} onClick={async () => { await builderApi.disconnectCore(); setCoreConnected(false); setCoreCredits(''); setSettingsMessage('Nesorina ny fifandraisana Core.'); }}>Esory ny fifandraisana</button></>}
                 {settingsMessage && <p>{settingsMessage}</p>}
                 {coreCredits && <pre>{coreCredits}</pre>}
-                <p>{modelStatus}</p>
               </section>}
 
               {!['dashboard', 'builder', 'projects', 'files', 'settings'].includes(activeView) && <section className="workspace-card"><h2>{currentPage.label}</h2><p>Hovelarina aorian’ny fametrahana ny pipeline build voaaro sy preview mitokana.</p></section>}
@@ -224,10 +202,9 @@ function App() {
           )}
         </div>
       </AppLayout>
-      <Modal isOpen={modal && Boolean(user)} onClose={() => setModal(false)} title="Tetikasa AI vaovao" description="Tehirizo ny famaritana; mbola tsy mandeha ny génération AI.">
-        {modelPicker}
+      <Modal isOpen={modal && Boolean(user)} onClose={() => setModal(false)} title="Tetikasa AI vaovao" description="Mamorona rakitra amin’ny alalan’ny Core; ny fandaniana dia alaina amin’ny balance Core.">
         <textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder="Farito ny tetikasa…" />
-        <button disabled={busy || !prompt.trim()} onClick={createProject}>{busy ? 'Mitahiry…' : 'Mamorona sy mitahiry'}</button>
+        <button disabled={busy || !prompt.trim()} onClick={createProject}>{busy ? 'Mamorona amin’ny AI…' : 'Mamorona application'}</button>
       </Modal>
     </>
   );
