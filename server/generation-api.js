@@ -47,7 +47,7 @@ export function createGenerationApi({store,fetchImpl=globalThis.fetch,coreApiUrl
     'Return ONLY valid JSON: {"files":[{"path":"package.json","content":"..."}]}. Content values must be JSON strings.',
     'Include package.json, index.html, src/main.tsx, src/App.tsx and src/index.css as appropriate.',
     'Responsive polished UI; complete imports and build scripts. No prose, secrets, node_modules or lockfiles. Max 20 files.',
-    'Use only these preinstalled dependencies, with exact versions and no ranges, tags, URLs or wildcards: react 19.3.0, react-dom 19.3.0, vite 8.3.0, typescript 5.7.3, lucide-react 0.468.0, @vitejs/plugin-react 6.1.1, @types/react 19.3.0, @types/react-dom 19.3.0, @types/node 22.20.2.',
+    'Use only these preinstalled dependencies, with exact versions and no ranges, tags, URLs or wildcards: react 19.3.0, react-dom 19.3.0, vite 8.3.5, typescript 5.7.3, lucide-react 0.468.0, @vitejs/plugin-react 6.1.1, @types/react 19.3.0, @types/react-dom 19.3.0, @types/node 22.20.2.',
     'Do not add any other dependencies. Use browser APIs and CSS instead of uninstalled packages. Keep package.json dependencies and devDependencies pinned to the exact versions listed above.',
     'Project name: '+project.name,
     'Original user request:',prompt,
@@ -63,7 +63,7 @@ export function createGenerationApi({store,fetchImpl=globalThis.fetch,coreApiUrl
    ].join('\n')});
    let files;try{files=parseFiles(review.data?.output);}catch(e){return send(res,502,{success:false,error:e.message,usage:result.usage});}
    try{await buildValidator(files);}catch(e){return send(res,e.statusCode||422,{success:false,error:'Generated app failed isolated build validation: '+e.message,usage:result.usage});}
-   for(const file of files){const saved=await store.putFile(user.id,m[1],file);if(!saved)return send(res,404,{success:false,error:'Project not found while saving files.'});}
+   const savedFiles=await store.putFiles(user.id,m[1],files);if(!savedFiles)return send(res,404,{success:false,error:'Project not found while saving files.'});
    return send(res,200,{success:true,project:await store.getProject(user.id,m[1]),generatedFiles:files,modelsUsed:Object.values(PIPELINE),usage:{charged_usd:[plan.usage,planReview.usage,result.usage,review.usage].reduce((sum,item)=>sum+Number(item?.charged_usd||0),0),currency:'USD',calls:{planner:plan.usage,plannerReview:planReview.usage,coder:result.usage,codeReviewer:review.usage}}});
   }catch(e){return send(res,e.statusCode||502,{success:false,error:e.statusCode?e.message:'Generation failed unexpectedly.'});}
  };
