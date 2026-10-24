@@ -2,6 +2,8 @@ import { createServer } from 'node:http';
 import { createPersistence } from './persistence.js';
 import { createConfiguredStore } from './store-factory.js';
 import { createAuthApi } from './auth-api.js';
+import { createGenerationApi } from './generation-api.js';
+import { validateBuild } from './build-worker-client.js';
 import { CORE_API_URL_DEFAULT, normalizeCoreModels } from './model-catalog.js';
 
 const PORT = Number.parseInt(process.env.PORT || '8787', 10);
@@ -27,9 +29,11 @@ export function createBuilderServer({
   fetchImpl = globalThis.fetch,
   coreApiUrl = CORE_API_URL,
   allowedOrigins = getAllowedOrigins(),
-  store = createPersistence()
+  store = createPersistence(),
+  buildValidator = validateBuild
 } = {}) {
   const authApi = createAuthApi({ store, fetchImpl, coreApiUrl });
+  const generationApi = createGenerationApi({ store, fetchImpl, coreApiUrl, buildValidator });
   return createServer(async (req, res) => {
     const origin = req.headers.origin;
 
@@ -86,6 +90,8 @@ export function createBuilderServer({
       }
     }
 
+    const generated = await generationApi(req, res, url);
+    if (generated !== false) return;
     const handled = await authApi(req, res, url);
     if (handled !== false) return;
 
