@@ -2,7 +2,6 @@ import { createServer } from 'node:net';
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdtemp, mkdir, readFile, rm, writeFile, chmod } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 
 const SOCKET_PATH = process.env.BUILDER_WORKER_SOCKET || '/run/4n-dev-ai-builder-worker/worker.sock';
@@ -153,11 +152,11 @@ async function build(files) {
 }
 
 function send(socket, payload) {
-  if (!socket.destroyed) socket.end(JSON.stringify(payload));
+  if (!socket.destroyed && !socket.writableEnded) socket.end(JSON.stringify(payload));
 }
 
 export function createBuildWorkerServer({ socketPath = SOCKET_PATH, buildImpl = build } = {}) {
-  const server = createServer(socket => {
+  const server = createServer({ allowHalfOpen: true }, socket => {
     socket.setTimeout(BUILD_TIMEOUT_MS + 10_000, () => socket.destroy());
     let input = '';
     socket.on('data', chunk => {
