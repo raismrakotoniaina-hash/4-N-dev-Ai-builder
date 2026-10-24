@@ -17,10 +17,10 @@ function response(service, model) {
   else data = { output: JSON.stringify({ files: goodFiles }) };
   return new Response(JSON.stringify({ success: true, service, model, data, usage: { charged_usd: 0.01, currency: 'USD' } }), { status: 200 });
 }
-async function setup(t, fetchImpl) {
+async function setup(t, fetchImpl, buildValidator = async () => ({ success: true })) {
   const dir = await mkdtemp(join(tmpdir(), '4n-generation-'));
   const store = createPersistence({ filePath: join(dir, 'state.json'), encryptionKey: 'test-encryption-key-that-is-at-least-32-bytes' });
-  const server = createBuilderServer({ store, fetchImpl });
+  const server = createBuilderServer({ store, fetchImpl, buildValidator });
   await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
   t.after(async () => {
     await new Promise((resolve, reject) => server.close((e) => e ? reject(e) : resolve()));
