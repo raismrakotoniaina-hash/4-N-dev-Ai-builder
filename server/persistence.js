@@ -202,17 +202,27 @@ export function createPersistence({ filePath = process.env.BUILDER_DATA_FILE || 
     });
   }
 
-  async function putFile(userId, projectId, { path, content }) {
+  async function putFiles(userId, projectId, files) {
+    if (!Array.isArray(files) || files.length < 1) throw new Error('At least one generated file is required.');
     return transact((state) => {
       const project = state.projects.find((item) => item.id === projectId && item.userId === userId);
       if (!project) return null;
-      const normalizedPath = path.replace(/^\/+/, '');
-      const existing = project.files.find((file) => file.path === normalizedPath);
-      if (existing) { existing.content = content; existing.updatedAt = new Date().toISOString(); }
-      else project.files.push({ path: normalizedPath, content, updatedAt: new Date().toISOString() });
-      project.updatedAt = new Date().toISOString();
-      return structuredClone(project.files.find((file) => file.path === normalizedPath));
+      const now = new Date().toISOString();
+      const saved = files.map(({ path, content }) => {
+        const normalizedPath = path.replace(/^\\/+/, '');
+        const existing = project.files.find((file) => file.path === normalizedPath);
+        if (existing) { existing.content = content; existing.updatedAt = now; }
+        else project.files.push({ path: normalizedPath, content, updatedAt: now });
+        return structuredClone(project.files.find((file) => file.path === normalizedPath));
+      });
+      project.updatedAt = now;
+      return saved;
     });
+  }
+
+  async function putFile(userId, projectId, file) {
+    const saved = await putFiles(userId, projectId, [file]);
+    return saved?.[0] ?? null;
   }
 
   async function deleteFile(userId, projectId, path) {
@@ -227,5 +237,5 @@ export function createPersistence({ filePath = process.env.BUILDER_DATA_FILE || 
     });
   }
 
-  return { createUser, verifyUser, createSession, getUserForSession, deleteSession, connectCoreKey, getCoreKey, disconnectCoreKey, coreConnectionStatus, listProjects, createProject, getProject, updateProject, deleteProject, putFile, deleteFile };
+  return { createUser, verifyUser, createSession, getUserForSession, deleteSession, connectCoreKey, getCoreKey, disconnectCoreKey, coreConnectionStatus, listProjects, createProject, getProject, updateProject, deleteProject, putFile, putFiles, deleteFile };
 }
