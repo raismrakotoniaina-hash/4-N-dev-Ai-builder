@@ -65,6 +65,6 @@ export function createGenerationApi({store,fetchImpl=globalThis.fetch,coreApiUrl
    try{await buildValidator(files);}catch(e){return send(res,e.statusCode||422,{success:false,error:'Generated app failed isolated build validation: '+e.message,usage:result.usage});}
    const savedFiles=await store.putFiles(user.id,m[1],files);if(!savedFiles)return send(res,404,{success:false,error:'Project not found while saving files.'});
    return send(res,200,{success:true,project:await store.getProject(user.id,m[1]),generatedFiles:files,modelsUsed:Object.values(PIPELINE),usage:{charged_usd:[plan.usage,planReview.usage,result.usage,review.usage].reduce((sum,item)=>sum+Number(item?.charged_usd||0),0),currency:'USD',calls:{planner:plan.usage,plannerReview:planReview.usage,coder:result.usage,codeReviewer:review.usage}}});
-  }catch(e){return send(res,e.statusCode||502,{success:false,error:e.statusCode?e.message:'Generation failed unexpectedly.'});}
+  }catch(e){console.error('Builder generation failed:', e instanceof Error ? e.message : 'Unknown error');return send(res,e.statusCode||502,{success:false,error:e.statusCode?e.message:'Generation failed unexpectedly.'});}
  };
 }
