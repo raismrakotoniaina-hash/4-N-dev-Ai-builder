@@ -209,7 +209,7 @@ export function createPersistence({ filePath = process.env.BUILDER_DATA_FILE || 
       if (!project) return null;
       const now = new Date().toISOString();
       const saved = files.map(({ path, content }) => {
-        const normalizedPath = path.replace(/^\\/+/, '');
+        const normalizedPath = path.replace(/^\/+/, '');
         const existing = project.files.find((file) => file.path === normalizedPath);
         if (existing) { existing.content = content; existing.updatedAt = now; }
         else project.files.push({ path: normalizedPath, content, updatedAt: now });
