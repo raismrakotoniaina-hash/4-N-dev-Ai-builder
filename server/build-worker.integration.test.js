@@ -11,7 +11,7 @@ const files = [
       type: 'module',
       scripts: { build: 'vite build' },
       dependencies: { react: '19.3.0', 'react-dom': '19.3.0' },
-      devDependencies: { '@vitejs/plugin-react': '6.1.1', vite: '8.3.0' }
+      devDependencies: { '@vitejs/plugin-react': '6.1.1', vite: '8.3.5' }
     })
   },
   { path: 'index.html', content: '<!doctype html><html><head><meta charset="UTF-8"><title>Smoke test</title></head><body><div id="root"></div><script type="module" src="/src/main.jsx"></script></body></html>' },
