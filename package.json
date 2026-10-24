@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "start:server": "node server/index.js",
     "test:server": "node --test server/*.test.js",
-    "db:migrate": "node server/migrate.js"
+    "db:migrate": "node server/migrate.js",
+    "start:worker": "node server/build-worker.js"
   },
   "dependencies": {
     "@vitejs/plugin-react": "6.1.1",
