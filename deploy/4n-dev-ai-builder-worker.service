@@ -1,0 +1,33 @@
+[Unit]
+Description=4N DEV AI Builder isolated build worker
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+User=4ndev
+Group=4ndev
+SupplementaryGroups=docker
+WorkingDirectory=/opt/4n-dev-ai-builder
+Environment=NODE_ENV=production
+Environment=BUILDER_WORKER_SOCKET=/run/4n-dev-ai-builder-worker/worker.sock
+RuntimeDirectory=4n-dev-ai-builder-worker
+RuntimeDirectoryMode=0750
+ExecStart=/usr/bin/node /opt/4n-dev-ai-builder/server/build-worker.js
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+ReadWritePaths=/run/4n-dev-ai-builder-worker /var/tmp
+MemoryMax=256M
+CPUQuota=100%
+TasksMax=128
+
+[Install]
+WantedBy=multi-user.target

@@ -16,5 +16,10 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
+      - name: Pull isolated build image
+        run: docker pull node:24-bookworm-slim
       - run: npm run build
-      - run: npm run test:server
+      - name: Test server and isolated build worker
+        run: npm run test:server
+        env:
+          RUN_ISOLATED_DOCKER_TESTS: '1'

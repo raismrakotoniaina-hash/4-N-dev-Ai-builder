@@ -18,6 +18,8 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
 export interface BuilderUser { id: string; email: string; createdAt: string; }
 export interface CoreConnection { connected: boolean; connectedAt: string | null; }
+export interface GeneratedFile { path: string; content: string; }
+export interface GenerationResult { project: Project & { files?: GeneratedFile[] }; generatedFiles: GeneratedFile[]; modelsUsed: string[]; usage?: { charged_usd?: number; currency?: string; input_tokens?: number; output_tokens?: number }; }
 
 export const builderApi = {
   listModels(): Promise<BuilderModel[]> {
@@ -41,8 +43,11 @@ export const builderApi = {
   createProject(name: string, description: string): Promise<Project> {
     return request<{ success: true; project: Project }>('/api/projects', { method: 'POST', body: JSON.stringify({ name, description }) }).then((result) => result.project);
   },
-  getProject(id: string): Promise<Project> {
-    return request<{ success: true; project: Project }>(`/api/projects/${id}`).then((result) => result.project);
+  getProject(id: string): Promise<Project & { files?: GeneratedFile[] }> {
+    return request<{ success: true; project: Project & { files?: GeneratedFile[] } }>(`/api/projects/${id}`).then((result) => result.project);
+  },
+  generateProject(id: string, prompt: string): Promise<GenerationResult> {
+    return request<GenerationResult & { success: true }>(`/api/projects/${id}/generate`, { method: 'POST', body: JSON.stringify({ prompt }) });
   },
   connectCore(apiKey: string): Promise<void> {
     return request('/api/core/connect', { method: 'POST', body: JSON.stringify({ apiKey }) }).then(() => undefined);
