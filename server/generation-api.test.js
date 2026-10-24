@@ -59,6 +59,22 @@ test('one user prompt invokes all four developer-selected Core models and saves 
   assert.equal(result.project.files.length, 2);
   assert.equal(result.usage.charged_usd, 0.04);
 });
+test('does not save generated files when isolated build fails', async (t) => {
+  const { base, cookie, store, user, project } = await setup(t, async (url, options) => {
+    return response(url.endsWith('/v1/chat') ? 'chat' : 'coding', JSON.parse(options.body).model);
+  }, async () => {
+    const error = new Error('Vite build failed.');
+    error.statusCode = 422;
+    throw error;
+  });
+  const r = await fetch(base + '/api/projects/' + project.id + '/generate', {
+    method: 'POST', headers: { Cookie: cookie, 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: 'Create an app' })
+  });
+  assert.equal(r.status, 422);
+  assert.match((await r.json()).error, /Vite build failed/);
+  assert.equal((await store.getProject(user.id, project.id)).files.length, 0);
+});
+
 test('does not accept a user-selected model', async (t) => {
   let calls = 0;
   const { base, cookie, project } = await setup(t, async (url, options) => {
