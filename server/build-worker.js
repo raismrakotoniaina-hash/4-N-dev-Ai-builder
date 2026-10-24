@@ -54,7 +54,7 @@ export async function validateDependencies(packageJson, nodeModules = NODE_MODUL
       throw new Error('Invalid dependency declaration.');
     }
     for (const [name, requested] of Object.entries(group)) {
-      if (!/^(?:@[a-z0-9._-]+\\/)?[a-z0-9._-]+$/.test(name)) {
+      if (!/^(?:@[a-z0-9._-]+\/)?[a-z0-9._-]+$/.test(name)) {
         throw new Error('Invalid dependency name.');
       }
       if (typeof requested !== 'string' || !VERSION.test(requested)) {
