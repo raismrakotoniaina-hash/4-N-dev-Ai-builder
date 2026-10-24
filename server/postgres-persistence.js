@@ -189,7 +189,18 @@ export function createPostgresPersistence({ pool, encryptionKey = process.env.BU
     return result.rowCount > 0;
   }
 
-  async function putFile(userId, projectId, { path, content }) {
+  async function putFiles(userId, projectId, files) {
+    if (!Array.isArray(files) || files.length === 0) {
+      throw new TypeError('At least one project file is required.');
+    }
+    const seen = new Set();
+    for (const file of files) {
+      if (!file || typeof file.path !== 'string' || !file.path || typeof file.content !== 'string' || seen.has(file.path)) {
+        throw new TypeError('Project files must have unique paths and string contents.');
+      }
+      seen.add(file.path);
+    }
+
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
@@ -198,22 +209,31 @@ export function createPostgresPersistence({ pool, encryptionKey = process.env.BU
         await client.query('ROLLBACK');
         return null;
       }
-      const result = await client.query(
-        `INSERT INTO builder_project_files(project_id,path,content) VALUES($1,$2,$3)
-         ON CONFLICT(project_id,path) DO UPDATE SET content=EXCLUDED.content,updated_at=NOW()
-         RETURNING path,content,updated_at`,
-        [projectId, path, content]
-      );
+      const saved = [];
+      for (const file of files) {
+        const result = await client.query(
+          `INSERT INTO builder_project_files(project_id,path,content) VALUES($1,$2,$3)
+           ON CONFLICT(project_id,path) DO UPDATE SET content=EXCLUDED.content,updated_at=NOW()
+           RETURNING path,content,updated_at`,
+          [projectId, file.path, file.content]
+        );
+        const row = result.rows[0];
+        saved.push({ path: row.path, content: row.content, updatedAt: new Date(row.updated_at).toISOString() });
+      }
       await client.query('UPDATE builder_projects SET updated_at=NOW() WHERE id=$1', [projectId]);
       await client.query('COMMIT');
-      const row = result.rows[0];
-      return { path: row.path, content: row.content, updatedAt: new Date(row.updated_at).toISOString() };
+      return saved;
     } catch (error) {
       await client.query('ROLLBACK').catch(() => {});
       throw error;
     } finally {
       client.release();
     }
+  }
+
+  async function putFile(userId, projectId, file) {
+    const saved = await putFiles(userId, projectId, [file]);
+    return saved ? saved[0] : null;
   }
 
   async function deleteFile(userId, projectId, path) {
@@ -237,5 +257,5 @@ export function createPostgresPersistence({ pool, encryptionKey = process.env.BU
     }
   }
 
-  return { createUser, verifyUser, createSession, getUserForSession, deleteSession, connectCoreKey, getCoreKey, disconnectCoreKey, coreConnectionStatus, listProjects, createProject, getProject, updateProject, deleteProject, putFile, deleteFile };
+  return { createUser, verifyUser, createSession, getUserForSession, deleteSession, connectCoreKey, getCoreKey, disconnectCoreKey, coreConnectionStatus, listProjects, createProject, getProject, updateProject, deleteProject, putFile, putFiles, deleteFile };
 }
