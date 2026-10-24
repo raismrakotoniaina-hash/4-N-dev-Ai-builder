@@ -113,7 +113,7 @@ function runDocker(args, timeout = BUILD_TIMEOUT_MS, cidFile) {
   });
 }
 
-async function build(files) {
+export async function buildGeneratedApp(files) {
   validateGeneratedFiles(files);
   let pkg;
   try {
@@ -155,7 +155,7 @@ function send(socket, payload) {
   if (!socket.destroyed && !socket.writableEnded) socket.end(JSON.stringify(payload));
 }
 
-export function createBuildWorkerServer({ socketPath = SOCKET_PATH, buildImpl = build } = {}) {
+export function createBuildWorkerServer({ socketPath = SOCKET_PATH, buildImpl = buildGeneratedApp } = {}) {
   const server = createServer({ allowHalfOpen: true }, socket => {
     socket.setTimeout(BUILD_TIMEOUT_MS + 10_000, () => socket.destroy());
     let input = '';
