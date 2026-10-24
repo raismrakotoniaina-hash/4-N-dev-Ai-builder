@@ -7,6 +7,7 @@ import { dirname, join, resolve } from 'node:path';
 
 const SOCKET_PATH = process.env.BUILDER_WORKER_SOCKET || '/run/4n-dev-ai-builder-worker/worker.sock';
 const NODE_MODULES = resolve(process.env.BUILDER_NODE_MODULES || join(process.cwd(), 'node_modules'));
+const BUILD_TMP_ROOT = process.env.BUILDER_TMP_DIR || '/var/tmp';
 const MAX_REQUEST_BYTES = 1_100_000;
 const MAX_FILE_BYTES = 500_000;
 const MAX_TOTAL_BYTES = 900_000;
@@ -126,8 +127,8 @@ async function build(files) {
     throw new Error('Generated package.json must define a build script containing vite build.');
   }
   await validateDependencies(pkg);
-  const root = await mkdtemp(join(tmpdir(), '4ndev-build-worker-'));
-  const cidFile = join(tmpdir(), `4ndev-build-cid-${process.pid}-${Date.now()}`);
+  const root = await mkdtemp(join(BUILD_TMP_ROOT, '4ndev-build-worker-'));
+  const cidFile = join(BUILD_TMP_ROOT, `4ndev-build-cid-${process.pid}-${Date.now()}`);
   try {
     for (const file of files) {
       const target = join(root, file.path);
@@ -136,7 +137,7 @@ async function build(files) {
     }
     await chmod(root, 0o777);
     const output = await runDocker([
-      'run', '--rm', '--cidfile', cidFile, '--network=none', '--read-only',
+      'run', '--rm', '--pull=never', '--cidfile', cidFile, '--network=none', '--read-only',
       '--cap-drop=ALL', '--security-opt=no-new-privileges', '--pids-limit=128',
       '--memory=768m', '--cpus=1', '--tmpfs', '/tmp:rw,nosuid,nodev,size=64m',
       '--env', 'HOME=/tmp', '--env', 'npm_config_cache=/tmp/npm-cache',
