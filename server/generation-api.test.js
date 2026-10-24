@@ -53,6 +53,9 @@ test('one user prompt invokes all four developer-selected Core models and saves 
     ['coding', '4n-code-nael-5.6']
   ]);
   assert.ok(calls.every((c) => c.auth === 'Bearer ' + API_KEY));
+  assert.match(calls[2].body.prompt, /exact versions and no ranges/);
+  assert.match(calls[2].body.prompt, /react 19\.3\.0/);
+  assert.match(calls[2].body.prompt, /vite 8\.3\.0/);
   assert.equal(result.project.files.length, 2);
   assert.equal(result.usage.charged_usd, 0.04);
 });
