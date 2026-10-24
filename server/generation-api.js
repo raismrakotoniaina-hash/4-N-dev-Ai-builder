@@ -1,3 +1,4 @@
+import { validateBuild } from './build-worker-client.js';
 const COOKIE = 'builder_session';
 // Developer-controlled orchestration: end users never select models.
 const PIPELINE = Object.freeze({
@@ -22,7 +23,7 @@ async function callCore(fetchImpl,base,key,service,body){
  let response;try{response=await fetchImpl(base.replace(/\/$/,'')+'/v1/'+service,{method:'POST',headers:{Accept:'application/json','Content-Type':'application/json',Authorization:'Bearer '+key},body:JSON.stringify(body),signal:AbortSignal.timeout(90000)});}catch{const e=new Error('Could not reach 4N DEV Core.');e.statusCode=502;throw e;}
  const p=await response.json().catch(()=>({}));if(!response.ok||p.success!==true){const msg=typeof p.error==='string'?p.error:p.error?.message;const e=new Error(msg||p.message||'Core generation failed.');e.statusCode=response.status===401?401:response.status===402?402:response.status===429?429:response.status>=500?502:400;throw e;}return p;
 }
-export function createGenerationApi({store,fetchImpl=globalThis.fetch,coreApiUrl='https://api.4ndev.dev'}){
+export function createGenerationApi({store,fetchImpl=globalThis.fetch,coreApiUrl='https://api.4ndev.dev',buildValidator=validateBuild}){
  return async function generationApi(req,res,url){
   const m=url.pathname.match(/^\/api\/projects\/([0-9a-f-]{36})\/generate$/i);if(!m||req.method!=='POST')return false;
   const user=await store.getUserForSession(cookieValue(req.headers.cookie));if(!user)return send(res,401,{success:false,error:'Authentication required.'});
@@ -61,6 +62,7 @@ export function createGenerationApi({store,fetchImpl=globalThis.fetch,coreApiUrl
     'Generated files:',JSON.stringify(JSON.parse(result.data?.output?.trim()||'{}'))
    ].join('\n')});
    let files;try{files=parseFiles(review.data?.output);}catch(e){return send(res,502,{success:false,error:e.message,usage:result.usage});}
+   try{await buildValidator(files);}catch(e){return send(res,e.statusCode||422,{success:false,error:'Generated app failed isolated build validation: '+e.message,usage:result.usage});}
    for(const file of files){const saved=await store.putFile(user.id,m[1],file);if(!saved)return send(res,404,{success:false,error:'Project not found while saving files.'});}
    return send(res,200,{success:true,project:await store.getProject(user.id,m[1]),generatedFiles:files,modelsUsed:Object.values(PIPELINE),usage:{charged_usd:[plan.usage,planReview.usage,result.usage,review.usage].reduce((sum,item)=>sum+Number(item?.charged_usd||0),0),currency:'USD',calls:{planner:plan.usage,plannerReview:planReview.usage,coder:result.usage,codeReviewer:review.usage}}});
   }catch(e){return send(res,e.statusCode||502,{success:false,error:e.statusCode?e.message:'Generation failed unexpectedly.'});}
