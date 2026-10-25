@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { navigationItems } from '../../data/navigation';
 import type { AppView } from '../../types/app';
+import { useLanguage } from '../../lib/i18n';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
 
@@ -26,6 +27,7 @@ export function Sidebar({
   onCollapse,
   onNewProject,
 }: SidebarProps) {
+  const { t } = useLanguage();
   return (
     <aside className={`sidebar ${isCollapsed ? 'sidebar--collapsed' : ''}`}>
       <div className="sidebar__top">
@@ -44,7 +46,7 @@ export function Sidebar({
         </div>
 
         <button
-          aria-label={isCollapsed ? 'Sokafy ny sidebar' : 'Afeno ny sidebar'}
+          aria-label={isCollapsed ? t('Sokafy ny sidebar') : t('Afeno ny sidebar')}
           className="sidebar__collapse"
           onClick={onCollapse}
           type="button"
@@ -54,7 +56,7 @@ export function Sidebar({
       </div>
 
       <div className="sidebar__workspace">
-        {!isCollapsed && <span className="sidebar__section-label">WORKSPACE</span>}
+        {!isCollapsed && <span className="sidebar__section-label">{t('WORKSPACE')}</span>}
 
         <Button
           aria-label="Mamorona projet vaovao"
@@ -64,12 +66,12 @@ export function Sidebar({
           size="sm"
         >
           <Plus size={17} />
-          {!isCollapsed && <span>New Project</span>}
+          {!isCollapsed && <span>{t('New Project')}</span>}
         </Button>
       </div>
 
       <nav aria-label="Main navigation" className="sidebar__navigation">
-        {!isCollapsed && <span className="sidebar__section-label">NAVIGATION</span>}
+        {!isCollapsed && <span className="sidebar__section-label">{t('NAVIGATION')}</span>}
 
         <div className="sidebar__nav-list">
           {navigationItems.map((item) => {
@@ -79,17 +81,17 @@ export function Sidebar({
             return (
               <button
                 aria-current={isActive ? 'page' : undefined}
-                aria-label={item.label}
+                aria-label={t(item.label)}
                 className={`sidebar__nav-item ${
                   isActive ? 'sidebar__nav-item--active' : ''
                 }`}
                 key={item.id}
                 onClick={() => onChangeView(item.id)}
-                title={isCollapsed ? item.label : undefined}
+                title={isCollapsed ? t(item.label) : undefined}
                 type="button"
               >
                 <Icon size={19} strokeWidth={1.8} />
-                {!isCollapsed && <span>{item.label}</span>}
+                {!isCollapsed && <span>{t(item.label)}</span>}
                 {isActive && !isCollapsed && <i />}
               </button>
             );
@@ -104,7 +106,7 @@ export function Sidebar({
               <Command size={16} />
             </div>
             <div>
-              <span>AI Engine</span>
+              <span>{t('AI Engine')}</span>
               <Badge pulse variant="success">
                 Ready
               </Badge>
@@ -115,12 +117,12 @@ export function Sidebar({
         <div className="sidebar__utility">
           <button aria-label="Settings" type="button">
             <Settings size={19} />
-            {!isCollapsed && <span>Settings</span>}
+            {!isCollapsed && <span>{t('Settings')}</span>}
           </button>
 
           <button aria-label="Help center" type="button">
             <CircleHelp size={19} />
-            {!isCollapsed && <span>Help Center</span>}
+            {!isCollapsed && <span>{t('Help Center')}</span>}
           </button>
         </div>
       </div>
