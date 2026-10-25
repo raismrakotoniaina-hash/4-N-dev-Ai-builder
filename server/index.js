@@ -30,10 +30,11 @@ export function createBuilderServer({
   coreApiUrl = CORE_API_URL,
   allowedOrigins = getAllowedOrigins(),
   store = createPersistence(),
-  buildValidator = validateBuild
+  buildValidator = validateBuild,
+  coreApiKey = process.env.BUILDER_CORE_API_KEY
 } = {}) {
   const authApi = createAuthApi({ store, fetchImpl, coreApiUrl });
-  const generationApi = createGenerationApi({ store, fetchImpl, coreApiUrl, buildValidator });
+  const generationApi = createGenerationApi({ store, fetchImpl, coreApiUrl, coreApiKey, buildValidator });
   return createServer(async (req, res) => {
     const origin = req.headers.origin;
 
