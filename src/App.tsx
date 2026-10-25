@@ -21,10 +21,6 @@ function App() {
   const [authMode, setAuthMode] = useState<'login' | 'register'>('register');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [coreKey, setCoreKey] = useState('');
-  const [coreConnected, setCoreConnected] = useState(false);
-  const [coreCredits, setCoreCredits] = useState('');
-  const [settingsMessage, setSettingsMessage] = useState('');
 
   const currentPage = navigationItems.find((item) => item.id === activeView) ?? navigationItems[0];
 
@@ -38,10 +34,9 @@ function App() {
     builderApi.me().then(async (currentUser) => {
       if (!active) return;
       setUser(currentUser);
-      const [items, connection] = await Promise.all([builderApi.listProjects(), builderApi.coreConnection()]);
+      const items = await builderApi.listProjects();
       if (!active) return;
       setProjects(items);
-      setCoreConnected(connection.connected);
       setMessage('Tafiditra soa aman-tsara.');
     }).catch(() => {
       if (active) setUser(null);
@@ -58,9 +53,7 @@ function App() {
       setUser(account);
       setPassword('');
       await refreshProjects();
-      const connection = await builderApi.coreConnection();
-      setCoreConnected(connection.connected);
-      setMessage('Tafiditra soa aman-tsara. Ampifandraiso amin’ny Core ny lakilenao.');
+      setMessage('Tafiditra soa aman-tsara. Vonona ny Builder raha voalamina amin’ny serveur ny Core.');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Tsy nahomby ny fidirana.');
     } finally {
@@ -74,8 +67,6 @@ function App() {
       setUser(null);
       setProjects([]);
       setSelected(null);
-      setCoreConnected(false);
-      setCoreCredits('');
       setMessage('Nivoaka tamin’ny kaonty ianao.');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Tsy afaka nivoaka.');
@@ -84,7 +75,6 @@ function App() {
 
   async function createProject() {
     if (!prompt.trim() || !user) return;
-    if (!coreConnected) { setMessage('Ampifandraiso amin’ny Settings aloha ny 4N DEV Core API key.'); setActiveView('settings'); setModal(false); return; }
     setBusy(true);
     try {
       const description = prompt.trim();
@@ -113,33 +103,6 @@ function App() {
     }
   }
 
-  async function connectCore() {
-    setBusy(true);
-    setSettingsMessage('');
-    try {
-      await builderApi.connectCore(coreKey);
-      setCoreKey('');
-      setCoreConnected(true);
-      setSettingsMessage('Voamarina ary voatahiry voaaro ny lakile Core.');
-    } catch (error) {
-      setSettingsMessage(error instanceof Error ? error.message : 'Tsy afaka nampifandray Core.');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function loadCoreCredits() {
-    setBusy(true);
-    try {
-      const result = await builderApi.coreCredits();
-      setCoreCredits(JSON.stringify(result, null, 2));
-    } catch (error) {
-      setSettingsMessage(error instanceof Error ? error.message : 'Tsy afaka naka ny balance Core.');
-    } finally {
-      setBusy(false);
-    }
-  }
-
   return (
     <>
       <AppLayout activeView={activeView} currentPage={currentPage} isMobileSidebarOpen={mobile}
@@ -148,14 +111,14 @@ function App() {
         onToggleSidebar={() => setCollapsed((value) => !value)} onNewProject={() => setModal(true)}>
         <div className="ai-builder-workspace">
           <div className="workspace-header">
-            <div><span className="eyebrow">4N DEV CORE</span><h1>{currentPage.label}</h1><p>AI Builder — kaonty manokana, Core balance manokana.</p></div>
+            <div><span className="eyebrow">4N DEV CORE</span><h1>{currentPage.label}</h1><p>AI Builder — kaonty manokana, Core no mitantana ny modely sy ny billing.</p></div>
             <div className="workspace-status">{message}</div>
           </div>
 
           {!user ? (
             <section className="workspace-card">
               <h2>{authMode === 'register' ? 'Mamoròna kaonty AI Builder' : 'Midira amin’ny kaontinao'}</h2>
-              <p>Ny kaonty Builder dia misaraka amin’ny Core Console. Ampifandraiso avy eo ny 4ndev_sk mba hampiasa ny balance Core-nao.</p>
+              <p>Ny kaonty Builder dia misaraka amin’ny Core Console. Ny Core sy ny modely dia tantanan’ny developer ao ambadika.</p>
               <label>Email<input type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="ianao@example.com" /></label>
               <label>Teny miafina<input type="password" autoComplete={authMode === 'register' ? 'new-password' : 'current-password'} value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Farafahakeliny 12 tarehintsoratra" /></label>
               <button disabled={busy || !email.trim() || password.length < (authMode === 'register' ? 12 : 1)} onClick={submitAuth}>{busy ? 'Miandry…' : authMode === 'register' ? 'Mamorona kaonty' : 'Hiditra'}</button>
@@ -178,7 +141,7 @@ function App() {
                 <div className="workspace-card"><h3>Tetikasa</h3><strong>{projects.length}</strong><p>Voatahiry isaky ny kaonty.</p>
                   {projects.slice(0, 5).map((project) => <button className="project-row" key={project.id} onClick={() => openProject(project)}>{project.name}</button>)}
                 </div>
-                <div className="workspace-card"><h3>Core services</h3><p>Model catalogue · Core balance · Project storage</p><span className="core-badge">CORE CONNECT {coreConnected ? 'CONNECTED' : 'REQUIRED'}</span></div>
+                <div className="workspace-card"><h3>Core services</h3><p>Model catalogue · Core balance · Project storage</p><span className="core-badge">CORE MANAGED BY DEVELOPER</span></div>
               </section>}
 
               {activeView === 'builder' && <section className="workspace-card"><h2>AI Builder</h2><textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder="Farito ny zavatra tianao hatsangana…" /><button disabled={busy || !prompt.trim()} onClick={createProject}>{busy ? 'Mitahiry…' : 'Mamorona sy mitahiry tetikasa'}</button><p>Ny AI Builder no mandrindra ny modely Core ao ambadika.</p></section>}
@@ -188,13 +151,9 @@ function App() {
               {activeView === 'files' && <section className="workspace-card"><h2>{selected?.name || 'Rakitra tetikasa'}</h2>{selected?.files?.length ? selected.files.map((file) => <div className="file-row" key={file.path}><code>{file.path}</code><span>{file.content.length} chars</span><details><summary>Jereo ny kaody</summary><pre>{file.content}</pre></details></div>) : <p>{selected ? 'Mbola tsy misy rakitra voatahiry ao amin’ity tetikasa ity.' : 'Misafidiana tetikasa ao amin’ny Projects.'}</p>}</section>}
 
               {activeView === 'settings' && <section className="workspace-card">
-                <h2>Fampifandraisana 4N DEV Core</h2>
-                <p>Core API: <code>https://api.4ndev.dev</code>. Ny Core no mitantana ny balance sy billing. Tsy tehirizina ao amin’ny navigateur ny lakile.</p>
-                <p>Toetry ny fifandraisana: <strong>{coreConnected ? 'Mifandray' : 'Tsy mbola mifandray'}</strong></p>
-                {!coreConnected && <><label>4N DEV Core secret key<input type="password" autoComplete="off" value={coreKey} onChange={(event) => setCoreKey(event.target.value)} placeholder="4ndev_sk_…" /></label><button disabled={busy || !coreKey.trim()} onClick={connectCore}>{busy ? 'Manamarina…' : 'Ampifandraiso ny Core'}</button></>}
-                {coreConnected && <><button disabled={busy} onClick={loadCoreCredits}>Jereo ny balance Core</button><button className="project-row" disabled={busy} onClick={async () => { await builderApi.disconnectCore(); setCoreConnected(false); setCoreCredits(''); setSettingsMessage('Nesorina ny fifandraisana Core.'); }}>Esory ny fifandraisana</button></>}
-                {settingsMessage && <p>{settingsMessage}</p>}
-                {coreCredits && <pre>{coreCredits}</pre>}
+                <h2>4N DEV Core</h2>
+                <p>Ny modely sy ny Core API key dia tantanan’ny developer ao amin’ny serveur. Tsy mila mampiditra <code>4ndev_sk</code> ny mpampiasa, ary tsy aseho ao amin’ny navigateur ny lakile.</p>
+                <p>Ny génération dia miasa rehefa voalamina ao amin’ny environment an’ny Builder ny <code>BUILDER_CORE_API_KEY</code>. Raha tsy mbola voalamina izany dia hampiseho hadisoana mazava ny backend.</p>
               </section>}
 
               {!['dashboard', 'builder', 'projects', 'files', 'settings'].includes(activeView) && <section className="workspace-card"><h2>{currentPage.label}</h2><p>Hovelarina aorian’ny fametrahana ny pipeline build voaaro sy preview mitokana.</p></section>}

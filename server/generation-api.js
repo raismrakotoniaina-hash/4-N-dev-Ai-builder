@@ -23,7 +23,7 @@ async function callCore(fetchImpl,base,key,service,body){
  let response;try{response=await fetchImpl(base.replace(/\/$/,'')+'/v1/'+service,{method:'POST',headers:{Accept:'application/json','Content-Type':'application/json',Authorization:'Bearer '+key},body:JSON.stringify(body),signal:AbortSignal.timeout(90000)});}catch{const e=new Error('Could not reach 4N DEV Core.');e.statusCode=502;throw e;}
  const p=await response.json().catch(()=>({}));if(!response.ok||p.success!==true){const msg=typeof p.error==='string'?p.error:p.error?.message;const e=new Error(msg||p.message||'Core generation failed.');e.statusCode=response.status===401?401:response.status===402?402:response.status===429?429:response.status>=500?502:400;throw e;}return p;
 }
-export function createGenerationApi({store,fetchImpl=globalThis.fetch,coreApiUrl='https://api.4ndev.dev',buildValidator=validateBuild}){
+export function createGenerationApi({store,fetchImpl=globalThis.fetch,coreApiUrl='https://api.4ndev.dev',coreApiKey=process.env.BUILDER_CORE_API_KEY,buildValidator=validateBuild}){
  return async function generationApi(req,res,url){
   const m=url.pathname.match(/^\/api\/projects\/([0-9a-f-]{36})\/generate$/i);if(!m||req.method!=='POST')return false;
   const user=await store.getUserForSession(cookieValue(req.headers.cookie));if(!user)return send(res,401,{success:false,error:'Authentication required.'});
@@ -33,7 +33,7 @@ export function createGenerationApi({store,fetchImpl=globalThis.fetch,coreApiUrl
    const prompt=typeof body.prompt==='string'?body.prompt.trim():'';
    if(!prompt||prompt.length>12000)return send(res,400,{success:false,error:'Describe the app in 1–12,000 characters.'});
    const project=await store.getProject(user.id,m[1]);if(!project)return send(res,404,{success:false,error:'Project not found.'});
-   const key=await store.getCoreKey(user.id);if(!key)return send(res,409,{success:false,error:'Connect a 4N DEV Core secret key in Settings first.'});
+   const key=coreApiKey||await store.getCoreKey(user.id);if(!key)return send(res,503,{success:false,error:'Builder Core service key is not configured.'});
    const plan=await callCore(fetchImpl,coreApiUrl,key,'chat',{model:PIPELINE.planner,max_output_tokens:700,messages:[
     {role:'system',content:'You are the lead architect of a production web app builder. Convert the user request into a concise implementation plan. Identify pages, features, data entities, validation, security and responsive behavior. No source code.'},
     {role:'user',content:prompt}

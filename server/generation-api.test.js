@@ -17,10 +17,10 @@ function response(service, model) {
   else data = { output: JSON.stringify({ files: goodFiles }) };
   return new Response(JSON.stringify({ success: true, service, model, data, usage: { charged_usd: 0.01, currency: 'USD' } }), { status: 200 });
 }
-async function setup(t, fetchImpl, buildValidator = async () => ({ success: true })) {
+async function setup(t, fetchImpl, buildValidator = async () => ({ success: true }), coreApiKey) {
   const dir = await mkdtemp(join(tmpdir(), '4n-generation-'));
   const store = createPersistence({ filePath: join(dir, 'state.json'), encryptionKey: 'test-encryption-key-that-is-at-least-32-bytes' });
-  const server = createBuilderServer({ store, fetchImpl, buildValidator });
+  const server = createBuilderServer({ store, fetchImpl, buildValidator, coreApiKey });
   await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
   t.after(async () => {
     await new Promise((resolve, reject) => server.close((e) => e ? reject(e) : resolve()));
@@ -101,4 +101,21 @@ test('rejects unsafe generated paths before writing any files', async (t) => {
   });
   assert.equal(r.status, 502);
   assert.equal((await store.getProject(user.id, project.id)).files.length, 0);
+});
+
+
+test('uses the server-side Builder Core key without requiring a user key', async (t) => {
+  const calls = [];
+  const serviceKey = '4ndev_sk_server_side_service_key_012345';
+  const { base, cookie, project, store, user } = await setup(t, async (url, options) => {
+    calls.push(options.headers.Authorization);
+    return response(url.endsWith('/v1/chat') ? 'chat' : 'coding', JSON.parse(options.body).model);
+  }, async () => ({ success: true }), serviceKey);
+  await store.disconnectCoreKey(user.id);
+  const r = await fetch(base + '/api/projects/' + project.id + '/generate', {
+    method: 'POST', headers: { Cookie: cookie, 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: 'Create a useful app' })
+  });
+  assert.equal(r.status, 200);
+  assert.equal(calls.length, 4);
+  assert.ok(calls.every((auth) => auth === 'Bearer ' + serviceKey));
 });
