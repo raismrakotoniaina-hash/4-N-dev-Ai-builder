@@ -107,10 +107,11 @@ test('rejects unsafe generated paths before writing any files', async (t) => {
 test('uses the server-side Builder Core key without requiring a user key', async (t) => {
   const calls = [];
   const serviceKey = '4ndev_sk_server_side_service_key_012345';
-  const { base, cookie, project } = await setup(t, async (url, options) => {
+  const { base, cookie, project, store, user } = await setup(t, async (url, options) => {
     calls.push(options.headers.Authorization);
     return response(url.endsWith('/v1/chat') ? 'chat' : 'coding', JSON.parse(options.body).model);
   }, async () => ({ success: true }), serviceKey);
+  await store.disconnectCoreKey(user.id);
   const r = await fetch(base + '/api/projects/' + project.id + '/generate', {
     method: 'POST', headers: { Cookie: cookie, 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: 'Create a useful app' })
   });
