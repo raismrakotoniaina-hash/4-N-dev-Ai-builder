@@ -21,9 +21,6 @@ function App() {
   const [authMode, setAuthMode] = useState<'login' | 'register'>('register');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [coreConnected, setCoreConnected] = useState(false);
-  const [coreCredits, setCoreCredits] = useState('');
-  const [settingsMessage, setSettingsMessage] = useState('');
 
   const currentPage = navigationItems.find((item) => item.id === activeView) ?? navigationItems[0];
 
@@ -40,7 +37,6 @@ function App() {
       const items = await builderApi.listProjects();
       if (!active) return;
       setProjects(items);
-      setCoreConnected(true);
       setMessage('Tafiditra soa aman-tsara.');
     }).catch(() => {
       if (active) setUser(null);
@@ -57,8 +53,7 @@ function App() {
       setUser(account);
       setPassword('');
       await refreshProjects();
-      const connection = await builderApi.coreConnection();
-      setMessage('Tafiditra soa aman-tsara. Ampifandraiso amin’ny Core ny lakilenao.');
+      setMessage('Tafiditra soa aman-tsara. Vonona ny Builder raha voalamina amin’ny serveur ny Core.');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Tsy nahomby ny fidirana.');
     } finally {
@@ -72,8 +67,6 @@ function App() {
       setUser(null);
       setProjects([]);
       setSelected(null);
-      setCoreConnected(false);
-      setCoreCredits('');
       setMessage('Nivoaka tamin’ny kaonty ianao.');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Tsy afaka nivoaka.');
@@ -107,18 +100,6 @@ function App() {
       setMessage('Tetikasa sy rakitra nalaina avy amin’ny fitahirizana maharitra.');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Tsy afaka nanokatra ilay tetikasa.');
-    }
-  }
-
-  async function loadCoreCredits() {
-    setBusy(true);
-    try {
-      const result = await builderApi.coreCredits();
-      setCoreCredits(JSON.stringify(result, null, 2));
-    } catch (error) {
-      setSettingsMessage(error instanceof Error ? error.message : 'Tsy afaka naka ny balance Core.');
-    } finally {
-      setBusy(false);
     }
   }
 
