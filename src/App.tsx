@@ -3,11 +3,13 @@ import { AppLayout } from './components/layout/AppLayout';
 import { Modal } from './components/ui/Modal';
 import { navigationItems } from './data/navigation';
 import { builderApi, type BuilderUser } from './lib/builderApi';
+import { useLanguage } from './lib/i18n';
 import type { AppView, Project, ProjectFile } from './types/app';
 
 type ProjectWithFiles = Project & { files?: ProjectFile[]; fileCount?: number };
 
 function App() {
+  const { t } = useLanguage();
   const [activeView, setActiveView] = useState<AppView>('dashboard');
   const [mobile, setMobile] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
@@ -28,6 +30,12 @@ function App() {
     const items = await builderApi.listProjects();
     setProjects(items);
   }
+
+  useEffect(() => {
+    const showNotifications = () => setMessage('Tsy mbola misy fampandrenesana vaovao.');
+    window.addEventListener('builder:notifications', showNotifications);
+    return () => window.removeEventListener('builder:notifications', showNotifications);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -111,14 +119,14 @@ function App() {
         onToggleSidebar={() => setCollapsed((value) => !value)} onNewProject={() => setModal(true)}>
         <div className="ai-builder-workspace">
           <div className="workspace-header">
-            <div><span className="eyebrow">4N DEV CORE</span><h1>{currentPage.label}</h1><p>AI Builder — kaonty manokana, Core no mitantana ny modely sy ny billing.</p></div>
+            <div><span className="eyebrow">4N DEV CORE</span><h1>{currentPage.label}</h1><p>{t('AI Builder — kaonty manokana, Core no mitantana ny modely sy ny billing.')}</p></div>
             <div className="workspace-status">{message}</div>
           </div>
 
           {!user ? (
             <section className="workspace-card">
               <h2>{authMode === 'register' ? 'Mamoròna kaonty AI Builder' : 'Midira amin’ny kaontinao'}</h2>
-              <p>Ny kaonty Builder dia misaraka amin’ny Core Console. Ny Core sy ny modely dia tantanan’ny developer ao ambadika.</p>
+              <p>{t('Ny kaonty Builder dia misaraka amin’ny Core Console. Ny Core sy ny modely dia tantanan’ny developer ao ambadika.')}</p>
               <label>Email<input type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="ianao@example.com" /></label>
               <label>Teny miafina<input type="password" autoComplete={authMode === 'register' ? 'new-password' : 'current-password'} value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Farafahakeliny 12 tarehintsoratra" /></label>
               <button disabled={busy || !email.trim() || password.length < (authMode === 'register' ? 12 : 1)} onClick={submitAuth}>{busy ? 'Miandry…' : authMode === 'register' ? 'Mamorona kaonty' : 'Hiditra'}</button>
@@ -128,32 +136,32 @@ function App() {
             <>
               <div className="workspace-card">
                 <p>Kaonty: <strong>{user.email}</strong></p>
-                <button className="project-row" onClick={signOut}>Hivoaka</button>
+                <button className="project-row" onClick={signOut}>{t('Hivoaka')}</button>
               </div>
 
               {activeView === 'dashboard' && <section className="workspace-grid">
                 <div className="workspace-card workspace-hero">
-                  <span className="eyebrow">BUILD WITH AI</span><h2>Farito ny tetikasanao.</h2>
-                  <p>Plan → Generate files → Save to project. Ny Core no mitantana ny modely sy billing.</p>
+                  <span className="eyebrow">BUILD WITH AI</span><h2>{t('Farito ny tetikasanao.')}</h2>
+                  <p>{t('Plan → Generate files → Save to project. Ny Core no mitantana ny modely sy billing.')}</p>
                   <textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder="Ohatra: Mamoròna boutique misy catalogue, panier ary espace admin…" />
                   <button disabled={busy || !prompt.trim()} onClick={createProject}>{busy ? 'Mamorona amin’ny AI…' : 'Mamorona application amin’ny AI'}</button>
                 </div>
-                <div className="workspace-card"><h3>Tetikasa</h3><strong>{projects.length}</strong><p>Voatahiry isaky ny kaonty.</p>
+                <div className="workspace-card"><h3>{t('Tetikasa')}</h3><strong>{projects.length}</strong><p>{t('Voatahiry isaky ny kaonty.')}</p>
                   {projects.slice(0, 5).map((project) => <button className="project-row" key={project.id} onClick={() => openProject(project)}>{project.name}</button>)}
                 </div>
-                <div className="workspace-card"><h3>Core services</h3><p>Model catalogue · Core balance · Project storage</p><span className="core-badge">CORE MANAGED BY DEVELOPER</span></div>
+                <div className="workspace-card"><h3>{t('Core services')}</h3><p>Model catalogue · Core balance · Project storage</p><span className="core-badge">CORE MANAGED BY DEVELOPER</span></div>
               </section>}
 
               {activeView === 'builder' && <section className="workspace-card"><h2>AI Builder</h2><textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder="Farito ny zavatra tianao hatsangana…" /><button disabled={busy || !prompt.trim()} onClick={createProject}>{busy ? 'Mitahiry…' : 'Mamorona sy mitahiry tetikasa'}</button><p>Ny AI Builder no mandrindra ny modely Core ao ambadika.</p></section>}
 
-              {activeView === 'projects' && <section className="workspace-card"><h2>Ny tetikasako</h2><p>Tehirizina ao amin’ny backend, ary ny tompony ihany no mahazo azy.</p>{projects.map((project) => <button className="project-row" key={project.id} onClick={() => openProject(project)}>{project.name}</button>)}{!projects.length && <p>Tsy mbola misy tetikasa.</p>}</section>}
+              {activeView === 'projects' && <section className="workspace-card"><h2>{t('Ny tetikasako')}</h2><p>Tehirizina ao amin’ny backend, ary ny tompony ihany no mahazo azy.</p>{projects.map((project) => <button className="project-row" key={project.id} onClick={() => openProject(project)}>{project.name}</button>)}{!projects.length && <p>{t('Tsy mbola misy tetikasa.')}</p>}</section>}
 
-              {activeView === 'files' && <section className="workspace-card"><h2>{selected?.name || 'Rakitra tetikasa'}</h2>{selected?.files?.length ? selected.files.map((file) => <div className="file-row" key={file.path}><code>{file.path}</code><span>{file.content.length} chars</span><details><summary>Jereo ny kaody</summary><pre>{file.content}</pre></details></div>) : <p>{selected ? 'Mbola tsy misy rakitra voatahiry ao amin’ity tetikasa ity.' : 'Misafidiana tetikasa ao amin’ny Projects.'}</p>}</section>}
+              {activeView === 'files' && <section className="workspace-card"><h2>{selected?.name || 'Rakitra tetikasa'}</h2>{selected?.files?.length ? selected.files.map((file) => <div className="file-row" key={file.path}><code>{file.path}</code><span>{file.content.length} chars</span><details><summary>{t('Jereo ny kaody')}</summary><pre>{file.content}</pre></details></div>) : <p>{selected ? 'Mbola tsy misy rakitra voatahiry ao amin’ity tetikasa ity.' : 'Misafidiana tetikasa ao amin’ny Projects.'}</p>}</section>}
 
               {activeView === 'help' && <section className="workspace-card"><h2>{currentPage.label === 'Help Center' ? currentPage.label : 'Help Center'}</h2><p>Fanampiana amin’ny kaonty, famoronana tetikasa, fitahirizana rakitra ary famahana hadisoana.</p><p>Raha tsy mandeha ny génération, jereo ny hafatra aseho eo ambony ary aza averina imbetsaka ny fangatahana raha misy mety handany crédit.</p></section>}
 
               {activeView === 'settings' && <section className="workspace-card">
-                <h2>4N DEV Core</h2>
+                <h2>{t('4N DEV Core')}</h2>
                 <p>Ny modely sy ny Core API key dia tantanan’ny developer ao amin’ny serveur. Tsy mila mampiditra <code>4ndev_sk</code> ny mpampiasa, ary tsy aseho ao amin’ny navigateur ny lakile.</p>
                 <p>Ny génération dia miasa rehefa voalamina ao amin’ny environment an’ny Builder ny <code>BUILDER_CORE_API_KEY</code>. Raha tsy mbola voalamina izany dia hampiseho hadisoana mazava ny backend.</p>
               </section>}
