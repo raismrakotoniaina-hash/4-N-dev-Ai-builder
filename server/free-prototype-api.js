@@ -117,7 +117,7 @@ footer { padding:1.5rem; text-align:center; color:#6a7487; font-size:.85rem; bor
     type: 'module',
     scripts: { build: 'tsc -b && vite build' },
     dependencies: { react: '19.3.0', 'react-dom': '19.3.0' },
-    devDependencies: { '@vitejs/plugin-react': '6.1.1', '@types/react': '19.3.0', '@types/react-dom': '19.3.0', typescript: '5.7.3', vite: '8.3.5' }
+    devDependencies: { '@vitejs/plugin-react': '6.1.1', '@types/react': '19.3.0', '@types/react-dom': '19.3.0', '@types/node': '22.20.2', typescript: '5.7.3', vite: '8.3.5' }
   }, null, 2);
   const tsconfig = JSON.stringify({
     compilerOptions: {
