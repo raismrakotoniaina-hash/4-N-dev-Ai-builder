@@ -22,9 +22,9 @@ function send(res, status, payload) {
 export function chooseTemplate(prompt) {
   const value = prompt
     .normalize('NFD')
-    .replace(/[\\u0300-\\u036f]/g, '')
+    .replace(/[\u0300-\u036f]/g, '')
     .toLocaleLowerCase('fr');
-  if (/portfolio|\\bcv\\b|resume|personnel|personal website|tranokala manokana|momba ahy|asa nataoko/.test(value)) return 'portfolio';
+  if (/portfolio|\bcv\b|resume|personnel|personal website|tranokala manokana|tranonkala manokana|momba ahy|asa nataoko/.test(value)) return 'portfolio';
   if (/dashboard|admin|statistique|analytics|gestion|tatitra|tabilao|fitantanana|famintinana/.test(value)) return 'dashboard';
   if (/restaurant|trano fisakafoanana|boutique|fivarotana|varotra|business|entreprise|orinasa|commerce|service|vokatra/.test(value)) return 'business';
   return 'landing';
