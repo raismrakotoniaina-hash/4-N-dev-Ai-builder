@@ -127,8 +127,8 @@ function App() {
             <section className="workspace-card">
               <h2>{authMode === 'register' ? 'Mamoròna kaonty AI Builder' : 'Midira amin’ny kaontinao'}</h2>
               <p>{t('Ny kaonty Builder dia misaraka amin’ny Core Console. Ny Core sy ny modely dia tantanan’ny developer ao ambadika.')}</p>
-              <label>Email<input type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="ianao@example.com" /></label>
-              <label>Teny miafina<input type="password" autoComplete={authMode === 'register' ? 'new-password' : 'current-password'} value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Farafahakeliny 12 tarehintsoratra" /></label>
+              <label>Email<input type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder={t('ianao@example.com')} /></label>
+              <label>Teny miafina<input type="password" autoComplete={authMode === 'register' ? 'new-password' : 'current-password'} value={password} onChange={(event) => setPassword(event.target.value)} placeholder={t('Farafahakeliny 12 tarehintsoratra')} /></label>
               <button disabled={busy || !email.trim() || password.length < (authMode === 'register' ? 12 : 1)} onClick={submitAuth}>{busy ? 'Miandry…' : authMode === 'register' ? 'Mamorona kaonty' : 'Hiditra'}</button>
               <button className="project-row" disabled={busy} onClick={() => setAuthMode(authMode === 'register' ? 'login' : 'register')}>{authMode === 'register' ? 'Efa manana kaonty? Hiditra' : 'Tsy mbola manana kaonty? Hisoratra anarana'}</button>
             </section>
@@ -141,9 +141,9 @@ function App() {
 
               {activeView === 'dashboard' && <section className="workspace-grid">
                 <div className="workspace-card workspace-hero">
-                  <span className="eyebrow">BUILD WITH AI</span><h2>{t('Farito ny tetikasanao.')}</h2>
+                  <span className="eyebrow">{t('BUILD WITH AI')}</span><h2>{t('Farito ny tetikasanao.')}</h2>
                   <p>{t('Plan → Generate files → Save to project. Ny Core no mitantana ny modely sy billing.')}</p>
-                  <textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder="Ohatra: Mamoròna boutique misy catalogue, panier ary espace admin…" />
+                  <textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder={t('Ohatra: Mamoròna boutique misy catalogue, panier ary espace admin…')} />
                   <button disabled={busy || !prompt.trim()} onClick={createProject}>{busy ? 'Mamorona amin’ny AI…' : 'Mamorona application amin’ny AI'}</button>
                 </div>
                 <div className="workspace-card"><h3>{t('Tetikasa')}</h3><strong>{projects.length}</strong><p>{t('Voatahiry isaky ny kaonty.')}</p>
@@ -152,7 +152,7 @@ function App() {
                 <div className="workspace-card"><h3>{t('Core services')}</h3><p>Model catalogue · Core balance · Project storage</p><span className="core-badge">CORE MANAGED BY DEVELOPER</span></div>
               </section>}
 
-              {activeView === 'builder' && <section className="workspace-card"><h2>AI Builder</h2><textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder="Farito ny zavatra tianao hatsangana…" /><button disabled={busy || !prompt.trim()} onClick={createProject}>{busy ? 'Mitahiry…' : 'Mamorona sy mitahiry tetikasa'}</button><p>Ny AI Builder no mandrindra ny modely Core ao ambadika.</p></section>}
+              {activeView === 'builder' && <section className="workspace-card"><h2>AI Builder</h2><textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder={t('Farito ny zavatra tianao hatsangana…')} /><button disabled={busy || !prompt.trim()} onClick={createProject}>{busy ? 'Mitahiry…' : 'Mamorona sy mitahiry tetikasa'}</button><p>Ny AI Builder no mandrindra ny modely Core ao ambadika.</p></section>}
 
               {activeView === 'projects' && <section className="workspace-card"><h2>{t('Ny tetikasako')}</h2><p>Tehirizina ao amin’ny backend, ary ny tompony ihany no mahazo azy.</p>{projects.map((project) => <button className="project-row" key={project.id} onClick={() => openProject(project)}>{project.name}</button>)}{!projects.length && <p>{t('Tsy mbola misy tetikasa.')}</p>}</section>}
 
@@ -172,7 +172,7 @@ function App() {
         </div>
       </AppLayout>
       <Modal isOpen={modal && Boolean(user)} onClose={() => setModal(false)} title="Tetikasa AI vaovao" description="Mamorona rakitra amin’ny alalan’ny Core; ny fandaniana dia alaina amin’ny balance Core.">
-        <textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder="Farito ny tetikasa…" />
+        <textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder={t('Farito ny tetikasa…')} />
         <button disabled={busy || !prompt.trim()} onClick={createProject}>{busy ? 'Mamorona amin’ny AI…' : 'Mamorona application'}</button>
       </Modal>
     </>
