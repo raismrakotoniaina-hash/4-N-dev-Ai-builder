@@ -20,10 +20,13 @@ function send(res, status, payload) {
 }
 
 export function chooseTemplate(prompt) {
-  const value = prompt.toLowerCase();
-  if (/portfolio|cv|resume|personnel|personal website/.test(value)) return 'portfolio';
-  if (/dashboard|admin|statistique|analytics|gestion/.test(value)) return 'dashboard';
-  if (/restaurant|boutique|business|entreprise|commerce|service/.test(value)) return 'business';
+  const value = prompt
+    .normalize('NFD')
+    .replace(/[\\u0300-\\u036f]/g, '')
+    .toLocaleLowerCase('fr');
+  if (/portfolio|\\bcv\\b|resume|personnel|personal website|tranokala manokana|momba ahy|asa nataoko/.test(value)) return 'portfolio';
+  if (/dashboard|admin|statistique|analytics|gestion|tatitra|tabilao|fitantanana|famintinana/.test(value)) return 'dashboard';
+  if (/restaurant|trano fisakafoanana|boutique|fivarotana|varotra|business|entreprise|orinasa|commerce|service|vokatra/.test(value)) return 'business';
   return 'landing';
 }
 
