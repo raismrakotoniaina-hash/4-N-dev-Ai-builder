@@ -40,6 +40,18 @@ export const navigationItems: NavigationItem[] = [
     icon: FolderTree,
   },
   {
+    id: 'settings',
+    label: 'Settings',
+    description: 'Builder settings',
+    icon: LayoutDashboard,
+  },
+  {
+    id: 'help',
+    label: 'Help Center',
+    description: 'Help and troubleshooting',
+    icon: Sparkles,
+  },
+  {
     id: 'projects',
     label: 'My Projects',
     description: 'Projects voatahiry',
