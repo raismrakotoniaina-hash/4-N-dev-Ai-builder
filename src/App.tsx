@@ -87,13 +87,12 @@ function App() {
     try {
       const description = prompt.trim();
       const project = await builderApi.createProject(description.slice(0, 120), description.slice(0, 2000));
-      setMessage('Mamorona ny rakitra amin’ny alalan’ny 4N DEV Core…');
+      setMessage('Mamorona prototype Free amin’ny algorithm sy templates; tsy mampiasa crédit Core…');
       const generated = await builderApi.generateFreePrototype(project.id, description);
       await refreshProjects();
       setSelected(generated.project as ProjectWithFiles);
       setPrompt(''); setModal(false); setActiveView('files');
-      const cost = typeof generated.usage?.charged_usd === 'number' ? ' | Core charge: $' + generated.usage.charged_usd.toFixed(4) : '';
-      setMessage('Vita ny génération. Rakitra noforonina: ' + generated.generatedFiles.length + cost);
+      setMessage('Vita ny prototype Free (' + generated.template + '). Rakitra: ' + generated.generatedFiles.length + '. Antso Core: ' + generated.coreCalls + '.');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Tsy nahomby ny génération; mety mbola voatahiry ilay tetikasa.');
       await refreshProjects().catch(() => {});
@@ -142,9 +141,9 @@ function App() {
               {activeView === 'dashboard' && <section className="workspace-grid">
                 <div className="workspace-card workspace-hero">
                   <span className="eyebrow">{t('BUILD WITH AI')}</span><h2>{t('Farito ny tetikasanao.')}</h2>
-                  <p>{t('Plan → Generate files → Save to project. Ny Core no mitantana ny modely sy billing.')}</p>
+                  <p>{t('Free prototype: algorithm sy templates, tsy mandany crédit Core.')}</p>
                   <textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder={t('Ohatra: Mamoròna boutique misy catalogue, panier ary espace admin…')} />
-                  <button disabled={busy || !prompt.trim()} onClick={createProject}>{busy ? 'Mamorona amin’ny AI…' : 'Mamorona application amin’ny AI'}</button>
+                  <button disabled={busy || !prompt.trim()} onClick={createProject}>{busy ? 'Mamorona prototype Free…' : 'Mamorona prototype Free (tsy misy crédit Core)'}</button>
                 </div>
                 <div className="workspace-card"><h3>{t('Tetikasa')}</h3><strong>{projects.length}</strong><p>{t('Voatahiry isaky ny kaonty.')}</p>
                   {projects.slice(0, 5).map((project) => <button className="project-row" key={project.id} onClick={() => openProject(project)}>{project.name}</button>)}
@@ -171,7 +170,7 @@ function App() {
           )}
         </div>
       </AppLayout>
-      <Modal isOpen={modal && Boolean(user)} onClose={() => setModal(false)} title="Tetikasa AI vaovao" description="Mamorona rakitra amin’ny alalan’ny Core; ny fandaniana dia alaina amin’ny balance Core.">
+      <Modal isOpen={modal && Boolean(user)} onClose={() => setModal(false)} title="Tetikasa AI vaovao" description="Mamorona prototype amin’ny algorithm sy templates. Tsy miantso 4N DEV Core ary tsy mandany crédit.">
         <textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder={t('Farito ny tetikasa…')} />
         <button disabled={busy || !prompt.trim()} onClick={createProject}>{busy ? 'Mamorona amin’ny AI…' : 'Mamorona application'}</button>
       </Modal>
