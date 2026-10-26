@@ -115,12 +115,12 @@ export function Sidebar({
         )}
 
         <div className="sidebar__utility">
-          <button aria-label="Settings" type="button">
+          <button aria-label={t('Settings')} onClick={() => onChangeView('settings')} type="button">
             <Settings size={19} />
             {!isCollapsed && <span>{t('Settings')}</span>}
           </button>
 
-          <button aria-label="Help center" type="button">
+          <button aria-label={t('Help Center')} onClick={() => onChangeView('help')} type="button">
             <CircleHelp size={19} />
             {!isCollapsed && <span>{t('Help Center')}</span>}
           </button>
