@@ -85,3 +85,51 @@ test('prototype endpoint rejects empty prompts before building', async () => {
   await handler(request({ body: { prompt: '  ' } }), res, new URL('/api/projects/' + PROJECT_ID + '/prototype', 'http://localhost'));
   assert.equal(res.statusCode, 400);
 });
+
+
+test('unowned projects are never built or modified', async () => {
+  let buildCount = 0;
+  let saveCount = 0;
+  const store = {
+    async getUserForSession() { return { id: 'user-2' }; },
+    async getProject() { return null; },
+    async putFiles() { saveCount++; }
+  };
+  const handler = createFreePrototypeApi({ store, buildValidator: async () => { buildCount++; return { success: true }; } });
+  const res = responseStub();
+  await handler(request({ body: { prompt: 'portfolio' } }), res, new URL('/api/projects/' + PROJECT_ID + '/prototype', 'http://localhost'));
+  assert.equal(res.statusCode, 404);
+  assert.equal(buildCount, 0);
+  assert.equal(saveCount, 0);
+});
+
+test('failed isolated build does not save any generated files', async () => {
+  let saveCount = 0;
+  const store = {
+    async getUserForSession() { return { id: 'user-1' }; },
+    async getProject() { return { id: PROJECT_ID, name: 'Test project' }; },
+    async putFiles() { saveCount++; }
+  };
+  const handler = createFreePrototypeApi({
+    store,
+    buildValidator: async () => { throw Object.assign(new Error('Build failed'), { statusCode: 422 }); }
+  });
+  const res = responseStub();
+  await handler(request({ body: { prompt: 'Mamorona pejy fandraisana' } }), res, new URL('/api/projects/' + PROJECT_ID + '/prototype', 'http://localhost'));
+  assert.equal(res.statusCode, 422);
+  assert.equal(JSON.parse(res.body).success, false);
+  assert.equal(saveCount, 0);
+});
+
+test('overlong prompt is rejected before project lookup or build', async () => {
+  let projectLookups = 0;
+  const store = {
+    async getUserForSession() { return { id: 'user-1' }; },
+    async getProject() { projectLookups++; return { id: PROJECT_ID, name: 'Test' }; }
+  };
+  const handler = createFreePrototypeApi({ store, buildValidator: async () => { throw new Error('must not build'); } });
+  const res = responseStub();
+  await handler(request({ body: { prompt: 'x'.repeat(4001) } }), res, new URL('/api/projects/' + PROJECT_ID + '/prototype', 'http://localhost'));
+  assert.equal(res.statusCode, 400);
+  assert.equal(projectLookups, 0);
+});
