@@ -1,4 +1,4 @@
-export type AppView = 'dashboard' | 'builder' | 'code' | 'preview' | 'files' | 'projects' | 'deployments' | 'settings';
+export type AppView = 'dashboard' | 'builder' | 'code' | 'preview' | 'files' | 'projects' | 'deployments' | 'settings' | 'help';
 
 import type { LucideIcon } from 'lucide-react';
 
