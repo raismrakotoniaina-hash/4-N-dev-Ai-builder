@@ -46,7 +46,7 @@ export const builderApi = {
   getProject(id: string): Promise<Project & { files?: GeneratedFile[] }> {
     return request<{ success: true; project: Project & { files?: GeneratedFile[] } }>(`/api/projects/${id}`).then((result) => result.project);
   },
-  generateProject(id: string, prompt: string): Promise<GenerationResult> {
+  generateFreePrototype(id: string, prompt: string): Promise<GenerationResult & { mode: 'free-template'; coreCalls: 0; template: string }> {\n    return request<GenerationResult & { mode: 'free-template'; coreCalls: 0; template: string }>(`/api/projects/${id}/prototype`, { method: 'POST', body: JSON.stringify({ prompt }) });\n  },\n  generateProject(id: string, prompt: string): Promise<GenerationResult> {
     return request<GenerationResult & { success: true }>(`/api/projects/${id}/generate`, { method: 'POST', body: JSON.stringify({ prompt }) });
   },
   connectCore(apiKey: string): Promise<void> {
