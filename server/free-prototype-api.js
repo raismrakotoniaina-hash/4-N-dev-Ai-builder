@@ -140,7 +140,7 @@ footer { padding:1.5rem; text-align:center; color:#6a7487; font-size:.85rem; bor
 
 export function createFreePrototypeApi({ store, buildValidator = async () => ({ success: true }) }) {
   return async function freePrototypeApi(req, res, url) {
-    const match = url.pathname.match(/^\\/api\\/projects\\/([0-9a-f-]{36})\\/prototype$/i);
+    const match = url.pathname.match(/^\/api\/projects\/([0-9a-f-]{36})\/prototype$/i);
     if (!match || req.method !== 'POST') return false;
     const user = await store.getUserForSession(cookieValue(req.headers.cookie));
     if (!user) return send(res, 401, { success: false, error: 'Authentication required.' });
