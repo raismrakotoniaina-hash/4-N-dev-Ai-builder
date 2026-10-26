@@ -38,8 +38,8 @@ export function Topbar({ currentPage, onOpenMobileMenu }: TopbarProps) {
             <option value="mg">Malagasy</option>
           </select>
         </label>
-        <button aria-label={t('Search')} className="topbar__action-button" type="button"><Search size={19} /></button>
-        <button aria-label={t('Notifications')} className="topbar__action-button topbar__notification" type="button"><Bell size={19} /><i /></button>
+        <button aria-label={t('Search')} className="topbar__action-button" onClick={() => document.querySelector<HTMLTextAreaElement>('.workspace-hero textarea, .workspace-card textarea')?.focus()} type="button"><Search size={19} /></button>
+        <button aria-label={t('Notifications')} className="topbar__action-button topbar__notification" onClick={() => window.dispatchEvent(new CustomEvent('builder:notifications'))} type="button"><Bell size={19} /><i /></button>
         <div className="topbar__profile">
           <div className="topbar__avatar">4N</div>
           <div className="topbar__user"><strong>4N DEV</strong><Badge variant="primary">Builder</Badge></div>
