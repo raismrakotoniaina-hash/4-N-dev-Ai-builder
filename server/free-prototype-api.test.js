@@ -26,6 +26,9 @@ test('template selection is deterministic and never requires a Core call', () =>
   assert.equal(chooseTemplate('portfolio manokana'), 'portfolio');
   assert.equal(chooseTemplate('dashboard fitantanana'), 'dashboard');
   assert.equal(chooseTemplate('boutique sy vokatra'), 'business');
+  assert.equal(chooseTemplate('tranonkala manokana'), 'portfolio');
+  assert.equal(chooseTemplate('tabilao sy tatitra'), 'dashboard');
+  assert.equal(chooseTemplate('fivarotana vokatra'), 'business');
   assert.equal(chooseTemplate('pejy fandraisana'), 'landing');
 });
 
