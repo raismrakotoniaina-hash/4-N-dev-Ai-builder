@@ -19,7 +19,7 @@ function send(res, status, payload) {
   res.end(JSON.stringify(payload));
 }
 
-function chooseTemplate(prompt) {
+export function chooseTemplate(prompt) {
   const value = prompt.toLowerCase();
   if (/portfolio|cv|resume|personnel|personal website/.test(value)) return 'portfolio';
   if (/dashboard|admin|statistique|analytics|gestion/.test(value)) return 'dashboard';
@@ -27,7 +27,7 @@ function chooseTemplate(prompt) {
   return 'landing';
 }
 
-function makeFiles({ projectName, prompt, template }) {
+export function makeFiles({ projectName, prompt, template }) {
   const safeName = projectName.trim().slice(0, 100) || 'Mon prototype';
   const description = prompt.trim().slice(0, 240);
   const title = JSON.stringify(safeName);
