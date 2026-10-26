@@ -88,7 +88,7 @@ function App() {
       const description = prompt.trim();
       const project = await builderApi.createProject(description.slice(0, 120), description.slice(0, 2000));
       setMessage('Mamorona ny rakitra amin’ny alalan’ny 4N DEV Core…');
-      const generated = await builderApi.generateProject(project.id, description);
+      const generated = await builderApi.generateFreePrototype(project.id, description);
       await refreshProjects();
       setSelected(generated.project as ProjectWithFiles);
       setPrompt(''); setModal(false); setActiveView('files');
