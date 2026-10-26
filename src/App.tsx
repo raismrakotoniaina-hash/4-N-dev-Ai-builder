@@ -150,13 +150,15 @@ function App() {
 
               {activeView === 'files' && <section className="workspace-card"><h2>{selected?.name || 'Rakitra tetikasa'}</h2>{selected?.files?.length ? selected.files.map((file) => <div className="file-row" key={file.path}><code>{file.path}</code><span>{file.content.length} chars</span><details><summary>Jereo ny kaody</summary><pre>{file.content}</pre></details></div>) : <p>{selected ? 'Mbola tsy misy rakitra voatahiry ao amin’ity tetikasa ity.' : 'Misafidiana tetikasa ao amin’ny Projects.'}</p>}</section>}
 
+              {activeView === 'help' && <section className="workspace-card"><h2>{currentPage.label === 'Help Center' ? currentPage.label : 'Help Center'}</h2><p>Fanampiana amin’ny kaonty, famoronana tetikasa, fitahirizana rakitra ary famahana hadisoana.</p><p>Raha tsy mandeha ny génération, jereo ny hafatra aseho eo ambony ary aza averina imbetsaka ny fangatahana raha misy mety handany crédit.</p></section>}
+
               {activeView === 'settings' && <section className="workspace-card">
                 <h2>4N DEV Core</h2>
                 <p>Ny modely sy ny Core API key dia tantanan’ny developer ao amin’ny serveur. Tsy mila mampiditra <code>4ndev_sk</code> ny mpampiasa, ary tsy aseho ao amin’ny navigateur ny lakile.</p>
                 <p>Ny génération dia miasa rehefa voalamina ao amin’ny environment an’ny Builder ny <code>BUILDER_CORE_API_KEY</code>. Raha tsy mbola voalamina izany dia hampiseho hadisoana mazava ny backend.</p>
               </section>}
 
-              {!['dashboard', 'builder', 'projects', 'files', 'settings'].includes(activeView) && <section className="workspace-card"><h2>{currentPage.label}</h2><p>Hovelarina aorian’ny fametrahana ny pipeline build voaaro sy preview mitokana.</p></section>}
+              {!['dashboard', 'builder', 'projects', 'files', 'settings', 'help'].includes(activeView) && <section className="workspace-card"><h2>{currentPage.label}</h2><p>Hovelarina aorian’ny fametrahana ny pipeline build voaaro sy preview mitokana.</p></section>}
             </>
           )}
         </div>
