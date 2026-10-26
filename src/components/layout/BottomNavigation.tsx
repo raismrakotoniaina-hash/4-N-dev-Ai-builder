@@ -1,5 +1,6 @@
 import { navigationItems } from '../../data/navigation';
 import type { AppView } from '../../types/app';
+import { useLanguage } from '../../lib/i18n';
 
 interface BottomNavigationProps {
   activeView: AppView;
@@ -10,6 +11,7 @@ export function BottomNavigation({
   activeView,
   onChangeView,
 }: BottomNavigationProps) {
+  const { t } = useLanguage();
   const mobileItems = navigationItems.slice(0, 5);
 
   return (
@@ -29,7 +31,7 @@ export function BottomNavigation({
             <span className="bottom-navigation__icon">
               <Icon size={20} strokeWidth={1.9} />
             </span>
-            <span>{item.label}</span>
+            <span>{t(item.label)}</span>
           </button>
         );
       })}
