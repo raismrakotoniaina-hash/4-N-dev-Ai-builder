@@ -4,7 +4,9 @@ export type Language = 'en' | 'fr' | 'mg';
 const STORAGE_KEY = '4n-builder-language';
 
 const dictionaries: Record<Language, Record<string, string>> = {
-  mg: {},
+  mg: {
+    'Dashboard': 'Dashboard', 'AI Builder': 'AI Builder', 'Code': 'Kaody', 'Preview': 'Topimaso', 'Files': 'Rakitra', 'My Projects': 'Ny tetikasako', 'Settings': 'Fikirana', 'Help Center': 'Foibe fanampiana', 'New Project': 'Tetikasa vaovao', 'WORKSPACE': 'TOERAM-PANAO', 'NAVIGATION': 'FITETEZANA', 'AI Engine': 'Motera AI', 'Ready': 'Vonona', 'Search': 'Fikarohana', 'Notifications': 'Fampandrenesana', 'Fiteny': 'Fiteny', 'Mamoròna projet vaovao': 'Mamoròna tetikasa vaovao',
+  },
   en: {
     'Fiteny': 'Language', 'Dashboard': 'Dashboard', 'AI Builder': 'AI Builder',
     'Code': 'Code', 'Preview': 'Preview', 'Files': 'Files', 'My Projects': 'My Projects',
