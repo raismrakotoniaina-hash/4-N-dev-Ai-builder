@@ -257,5 +257,36 @@ export function createPostgresPersistence({ pool, encryptionKey = process.env.BU
     }
   }
 
-  return { createUser, verifyUser, createSession, getUserForSession, deleteSession, connectCoreKey, getCoreKey, disconnectCoreKey, coreConnectionStatus, listProjects, createProject, getProject, updateProject, deleteProject, putFile, putFiles, deleteFile };
+  async function getBillingState(userId) {
+    const subscriptionResult = await pool.query(
+      `SELECT plan,billing_interval,status,price_usd_cents,currency,period_start,period_end,cancel_at_period_end
+       FROM builder_subscriptions
+       WHERE user_id=$1 AND status IN ('active','past_due','canceled') AND period_end > NOW()
+       ORDER BY CASE status WHEN 'active' THEN 0 WHEN 'past_due' THEN 1 ELSE 2 END, period_end DESC
+       LIMIT 1`,
+      [userId]
+    );
+    const subscription = subscriptionResult.rows[0] || null;
+    const balanceResult = await pool.query(
+      'SELECT balance_after FROM builder_credit_ledger WHERE user_id=$1 ORDER BY id DESC LIMIT 1',
+      [userId]
+    );
+    const row = subscription ? {
+      plan: subscription.plan,
+      billingInterval: subscription.billing_interval,
+      status: subscription.status,
+      priceUsdCents: subscription.price_usd_cents,
+      currency: subscription.currency,
+      periodStart: new Date(subscription.period_start).toISOString(),
+      periodEnd: new Date(subscription.period_end).toISOString(),
+      cancelAtPeriodEnd: subscription.cancel_at_period_end
+    } : {
+      plan: 'free', billingInterval: 'monthly', status: 'active',
+      priceUsdCents: 0, currency: 'USD', periodStart: null, periodEnd: null,
+      cancelAtPeriodEnd: false
+    };
+    return { subscription: row, creditsBalance: balanceResult.rows[0]?.balance_after ?? 0 };
+  }
+
+  return { createUser, verifyUser, createSession, getUserForSession, deleteSession, connectCoreKey, getCoreKey, disconnectCoreKey, coreConnectionStatus, listProjects, createProject, getProject, updateProject, deleteProject, putFile, putFiles, deleteFile, getBillingState };
 }
