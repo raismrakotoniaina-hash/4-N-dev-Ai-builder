@@ -44,7 +44,7 @@ test('template files form a bounded, runnable Vite app', () => {
   const pkg = JSON.parse(files.find(file => file.path === 'package.json').content);
   assert.equal(pkg.scripts.build, 'tsc -b && vite build');
   assert.equal(pkg.dependencies.react, '19.3.0');
-  assert.match(files.find(file => file.path === 'src/App.tsx').content, /Prototype Free/);
+  assert.match(files.find(file => file.path === 'src/App.tsx').content, /4N DEV/);
 });
 
 test('authenticated owner gets a saved prototype with zero Core calls', async () => {
@@ -132,7 +132,7 @@ test('overlong prompt is rejected before project lookup or build', async () => {
   };
   const handler = createFreePrototypeApi({ store, buildValidator: async () => { throw new Error('must not build'); } });
   const res = responseStub();
-  await handler(request({ body: { prompt: 'x'.repeat(4001) } }), res, new URL('/api/projects/' + PROJECT_ID + '/prototype', 'http://localhost'));
+  await handler(request({ body: { prompt: 'x'.repeat(12001) } }), res, new URL('/api/projects/' + PROJECT_ID + '/prototype', 'http://localhost'));
   assert.equal(res.statusCode, 400);
   assert.equal(projectLookups, 0);
 });
