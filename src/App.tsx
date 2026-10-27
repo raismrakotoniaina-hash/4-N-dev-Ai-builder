@@ -104,9 +104,9 @@ function App() {
     if (!prompt.trim() || !user || busy) return;
     setBusy(true);
     const description = prompt.trim();
-    setGenerationLog(['Miomana handefa ny prompt amin’ny serveur…']);
+    setGenerationLog(['Manomana ny application…']);
     setActiveView('builder');
-    setMessage('Generation AI tena izy no mandeha; 10 crédit Builder no sarany raha vita soa aman-tsara.');
+    setMessage('Mamorona ny application…');
     let progressPoller: number | undefined;
     try {
       const project = await builderApi.createProject(description.slice(0, 120), description.slice(0, 2000));
@@ -128,7 +128,7 @@ function App() {
       setPrompt('');
       setModal(false);
       setActiveView('files');
-      setMessage('Nahomby ny generation AI. Rakitra: ' + generated.generatedFiles.length + '. Crédit nampiasaina: ' + (generated.creditsCharged ?? 10) + '.');
+      setMessage('Vita ny application. Rakitra: ' + generated.generatedFiles.length + (generated.mode === 'free-template' ? '.' : '. Crédit nampiasaina: ' + (generated.creditsCharged ?? 10) + '.'));
     } catch (error) {
       if (progressPoller !== undefined) window.clearInterval(progressPoller);
       const detail = error instanceof Error ? error.message : 'Tsy nahomby ny génération AI.';
@@ -190,9 +190,9 @@ function App() {
               {activeView === 'dashboard' && <section className="workspace-grid">
                 <div className="workspace-card workspace-hero">
                   <span className="eyebrow">{t('BUILD WITH AI')}</span><h2>{t('Farito ny tetikasanao.')}</h2>
-                  <p>Generation AI tena izy: mandrindra modely 4 ao amin’ny Core, manoratra kaody, mandinika azy ary manao build mitokana. Sarany: 10 crédit Builder raha vita.</p>
+                  <p>Mamoròna application web mifanaraka amin’ny finday sy solosaina. Ny Builder dia hanomana ny rakitra ary hanamarina ny build.</p>
                   <textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder={t('Ohatra: Mamoròna boutique misy catalogue, panier ary espace admin…')} />
-                  <button disabled={busy || !prompt.trim()} onClick={createProject}>{busy ? 'Manao generation AI…' : 'Mamorona amin’ny AI (10 crédit rehefa vita)'}</button>
+                  <button disabled={busy || !prompt.trim()} onClick={createProject}>{busy ? 'Manao generation AI…' : 'Mamorona application'}</button>
                 </div>
                 <div className="workspace-card"><h3>{t('Tetikasa')}</h3><strong>{projects.length}</strong><p>{t('Voatahiry isaky ny kaonty.')}</p>
                   {projects.slice(0, 5).map((project) => <button className="project-row" key={project.id} onClick={() => openProject(project)}>{project.name}</button>)}
@@ -241,12 +241,12 @@ function App() {
                 </section>
               </>}
 
-              {!['dashboard', 'builder', 'projects', 'files', 'settings', 'help'].includes(activeView) && <section className="workspace-card"><h2>{currentPage.label}</h2><p>Hovelarina aorian’ny fametrahana ny pipeline build voaaro sy preview mitokana.</p></section>}
+              {!['dashboard', 'builder', 'projects', 'files', 'settings', 'help'].includes(activeView) && <section className="workspace-card"><h2>{currentPage.label}</h2><p>Misafidiana tetikasa iray hanohizana.</p></section>}
             </>
           )}
         </div>
       </AppLayout>
-      <Modal isOpen={modal && Boolean(user)} onClose={() => setModal(false)} title="Tetikasa AI vaovao" description="Mamorona prototype amin’ny algorithm sy templates. Tsy miantso 4N DEV Core ary tsy mandany crédit.">
+      <Modal isOpen={modal && Boolean(user)} onClose={() => setModal(false)} title="Tetikasa AI vaovao" description="Farito ny application tianao hatsangana. Ho voatahiry ao amin’ny tetikasanao ny rakitra.">
         <textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder={t('Farito ny tetikasa…')} />
         <button disabled={busy || !prompt.trim()} onClick={createProject}>{busy ? 'Mamorona amin’ny AI…' : 'Mamorona application'}</button>
       </Modal>
