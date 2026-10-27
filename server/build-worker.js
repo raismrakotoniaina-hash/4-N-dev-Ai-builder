@@ -138,7 +138,7 @@ async function createSandboxPreview(root) {
   }
   const dataUrl = (asset) => 'data:' + asset.type + ';base64,' + asset.data.toString('base64');
   for (const [url, asset] of assets) {
-    if (asset.type.startsWith('image/') || asset.type.startsWith('font/')) continue;
+    if (!asset.type.startsWith('image/') && !asset.type.startsWith('font/')) continue;
     const escaped = url.replaceAll('.', '\\.');
     const replacement = dataUrl(asset);
     html = html.replace(new RegExp(escaped, 'g'), replacement);
@@ -147,14 +147,17 @@ async function createSandboxPreview(root) {
   html = await replaceAsync(html, /<script\b([^>]*?)\bsrc=["']([^"']+\.js)["']([^>]*)><\/script>/gi, async (_tag, before, src, after) => {
     const asset = assets.get(src);
     if (!asset || asset.type !== 'text/javascript') throw new Error('Cannot create isolated preview: JavaScript bundle is missing.');
-    const code = asset.data.toString('utf8');
+    let code = asset.data.toString('utf8');
     if (/\bimport\s*(?:\(|[{*'"])/.test(code)) throw new Error('Cannot create isolated preview: split JavaScript bundles are not supported yet.');
+    for (const [assetUrl, nested] of assets) if (nested.type.startsWith('image/') || nested.type.startsWith('font/')) code = code.replaceAll(assetUrl, dataUrl(nested));
     return '<script type="module">' + code.replace(/<\/script/gi, '<\\/script') + '</script>';
   });
   html = await replaceAsync(html, /<link\b([^>]*?)\bhref=["']([^"']+\.css)["']([^>]*)>/gi, async (tag, before, href) => {
     const asset = assets.get(href);
     if (!asset || asset.type !== 'text/css') return '';
-    return '<style>' + asset.data.toString('utf8').replace(/<\/style/gi, '<\\/style') + '</style>';
+    let css = asset.data.toString('utf8');
+    for (const [assetUrl, nested] of assets) if (nested.type.startsWith('image/') || nested.type.startsWith('font/')) css = css.replaceAll(assetUrl, dataUrl(nested));
+    return '<style>' + css.replace(/<\/style/gi, '<\\/style') + '</style>';
   });
   const csp = "<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline' data:; style-src 'unsafe-inline' data:; img-src data: blob:; font-src data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'\">";
   html = html.replace(/<head([^>]*)>/i, '<head$1>' + csp);
