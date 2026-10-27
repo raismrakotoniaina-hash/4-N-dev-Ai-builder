@@ -208,7 +208,8 @@ export async function buildGeneratedApp(files) {
       '--volume', `${NODE_MODULES}:/workspace/node_modules:ro`,
       '--workdir', '/workspace', 'node:24-bookworm-slim', 'sh', '-lc', 'npm run build'
     ], BUILD_TIMEOUT_MS, cidFile);
-    const previewHtml = await createSandboxPreview(root);\n    return { success: true, log: output.slice(-MAX_LOG_BYTES), previewHtml };
+    const previewHtml = await createSandboxPreview(root);
+    return { success: true, log: output.slice(-MAX_LOG_BYTES), previewHtml };
   } finally {
     await rm(root, { recursive: true, force: true });
     await rm(cidFile, { force: true });
