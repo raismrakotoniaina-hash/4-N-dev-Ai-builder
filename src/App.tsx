@@ -183,7 +183,7 @@ function App() {
                 <h2>{busy ? 'Mandroso ny generation AI…' : 'Tatitra generation AI'}</h2>
                 <p>Ireo dingana ireo dia tatitra avy amin’ny serveur, havaozina isaky ny mandroso ny Core na ny build worker.</p>
                 <ol className="generation-log">{generationLog.map((line, index) => <li key={index} className={line.startsWith('VITA:') ? 'generation-log__done' : line.startsWith('TSY TAFITA:') ? 'generation-log__error' : ''}>{line}</li>)}</ol>
-                {busy && <div className="generation-progress__bar" role="progressbar" aria-label="Generation AI mandeha"><span /></div>}
+                {busy && <div className="generation-progress__bar" role="progressbar" aria-label="Famoronana application mandeha"><span /></div>}
                 <div ref={logEndRef} />
               </section>}
 
@@ -192,7 +192,7 @@ function App() {
                   <span className="eyebrow">{t('BUILD WITH AI')}</span><h2>{t('Farito ny tetikasanao.')}</h2>
                   <p>Mamoròna application web mifanaraka amin’ny finday sy solosaina. Ny Builder dia hanomana ny rakitra ary hanamarina ny build.</p>
                   <textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder={t('Ohatra: Mamoròna boutique misy catalogue, panier ary espace admin…')} />
-                  <button disabled={busy || !prompt.trim()} onClick={createProject}>{busy ? 'Manao generation AI…' : 'Mamorona application'}</button>
+                  <button disabled={busy || !prompt.trim()} onClick={createProject}>{busy ? 'Mamorona application…' : 'Mamorona application'}</button>
                 </div>
                 <div className="workspace-card"><h3>{t('Tetikasa')}</h3><strong>{projects.length}</strong><p>{t('Voatahiry isaky ny kaonty.')}</p>
                   {projects.slice(0, 5).map((project) => <button className="project-row" key={project.id} onClick={() => openProject(project)}>{project.name}</button>)}
@@ -200,7 +200,7 @@ function App() {
                 <div className="workspace-card"><h3>{t('Core services')}</h3><p>Model catalogue · Core balance · Project storage</p><span className="core-badge">CORE MANAGED BY DEVELOPER</span></div>
               </section>}
 
-              {activeView === 'builder' && <section className="workspace-card"><h2>AI Builder</h2><textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder={t('Farito ny zavatra tianao hatsangana…')} /><button disabled={busy || !prompt.trim()} onClick={createProject}>{busy ? 'Mitahiry…' : 'Mamorona sy mitahiry tetikasa'}</button><p>Ny AI Builder no mandrindra ny modely Core ao ambadika.</p></section>}
+              {activeView === 'builder' && <section className="workspace-card"><h2>AI Builder</h2><textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder={t('Farito ny zavatra tianao hatsangana…')} /><button disabled={busy || !prompt.trim()} onClick={createProject}>{busy ? 'Mitahiry…' : 'Mamorona sy mitahiry tetikasa'}</button><p>Farito ny application tianao hatsangana, dia tehirizo ao amin’ny tetikasanao.</p></section>}
 
               {activeView === 'projects' && <section className="workspace-card"><h2>{t('Ny tetikasako')}</h2><p>Tehirizina ao amin’ny backend, ary ny tompony ihany no mahazo azy.</p>{projects.map((project) => <button className="project-row" key={project.id} onClick={() => openProject(project)}>{project.name}</button>)}{!projects.length && <p>{t('Tsy mbola misy tetikasa.')}</p>}</section>}
 
@@ -225,7 +225,7 @@ function App() {
                           <p><strong>${(price / 100).toFixed(2)} USD</strong> {billingInterval === 'monthly' ? '/ volana' : '/ 12 volana'}</p>
                           {billingInterval === 'yearly' && plan.yearlySavingsUsdCents !== null && <p>Mitahiry ${(plan.yearlySavingsUsdCents / 100).toFixed(2)} USD isan-taona · mitovy amin’ny ${(plan.yearlyMonthlyEquivalentUsdCents / 100).toFixed(2)} USD/volana</p>}
                           <p>Crédit omena isam-bolana: {plan.monthlyCredits}</p>
-                          {plan.prototypeOnly && <p>Prototype Free ihany</p>}
+                          {plan.prototypeOnly && <p>Famoronana maimaim-poana</p>}
                         </article>;
                       })}
                     </div>
@@ -248,7 +248,7 @@ function App() {
       </AppLayout>
       <Modal isOpen={modal && Boolean(user)} onClose={() => setModal(false)} title="Tetikasa AI vaovao" description="Farito ny application tianao hatsangana. Ho voatahiry ao amin’ny tetikasanao ny rakitra.">
         <textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder={t('Farito ny tetikasa…')} />
-        <button disabled={busy || !prompt.trim()} onClick={createProject}>{busy ? 'Mamorona amin’ny AI…' : 'Mamorona application'}</button>
+        <button disabled={busy || !prompt.trim()} onClick={createProject}>{busy ? 'Mamorona application…' : 'Mamorona application'}</button>
       </Modal>
     </>
   );
