@@ -196,7 +196,7 @@ test('reports real generation stages through an authenticated status endpoint', 
   assert.equal(during.status, 200);
   const current = await during.json();
   assert.equal(current.progress.state, 'running');
-  assert.ok(current.progress.steps.some((step) => /plan/i.test(step.message)));
+  assert.ok(current.progress.steps.some((step) => /drafitra/i.test(step.message)));
   releaseFirstCall();
   const finished = await generation;
   assert.equal(finished.status, 200);
