@@ -17,7 +17,7 @@ function response(service, model) {
   else data = { output: JSON.stringify({ files: goodFiles }) };
   return new Response(JSON.stringify({ success: true, service, model, data, usage: { charged_usd: 0.01, currency: 'USD' } }), { status: 200 });
 }
-async function setup(t, fetchImpl, buildValidator = async () => ({ success: true }), coreApiKey) {
+async function setup(t, fetchImpl, buildValidator = async () => ({ success: true }), coreApiKey, initialCredits = 50) {
   const dir = await mkdtemp(join(tmpdir(), '4n-generation-'));
   const store = createPersistence({ filePath: join(dir, 'state.json'), encryptionKey: 'test-encryption-key-that-is-at-least-32-bytes' });
   const server = createBuilderServer({ store, fetchImpl, buildValidator, coreApiKey });
@@ -31,12 +31,15 @@ async function setup(t, fetchImpl, buildValidator = async () => ({ success: true
   const cookie = auth.headers.get('set-cookie').split(';')[0];
   const user = await store.getUserForSession(cookie.split('=')[1]);
   await store.connectCoreKey(user.id, API_KEY);
+  if (initialCredits > 0) {
+    await store.grantCredits({ userId: user.id, amount: initialCredits, idempotencyKey: 'test-grant:' + user.id, reason: 'Generation API test credits' });
+  }
   const p = await fetch(base + '/api/projects', { method: 'POST', headers: { Cookie: cookie, 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'Test app' }) });
   return { base, cookie, store, user, project: (await p.json()).project };
 }
-test('one user prompt invokes all four developer-selected Core models and saves files', async (t) => {
+test('one user prompt invokes all four developer-selected Core models, saves files and charges 10 Builder credits', async (t) => {
   const calls = [];
-  const { base, cookie, project } = await setup(t, async (url, options) => {
+  const { base, cookie, project, store, user } = await setup(t, async (url, options) => {
     const body = JSON.parse(options.body);
     calls.push({ url, body, auth: options.headers.Authorization });
     return response(url.endsWith('/v1/chat') ? 'chat' : 'coding', body.model);
@@ -58,8 +61,10 @@ test('one user prompt invokes all four developer-selected Core models and saves 
   assert.match(calls[2].body.prompt, /vite 8\.3\.5/);
   assert.equal(result.project.files.length, 2);
   assert.equal(result.usage.charged_usd, 0.04);
+  assert.equal(result.creditsCharged, 10);
+  assert.equal((await store.getBillingState(user.id)).creditsBalance, 40);
 });
-test('does not save generated files when isolated build fails', async (t) => {
+test('does not save generated files or charge credits when isolated build fails', async (t) => {
   const { base, cookie, store, user, project } = await setup(t, async (url, options) => {
     return response(url.endsWith('/v1/chat') ? 'chat' : 'coding', JSON.parse(options.body).model);
   }, async () => {
@@ -73,8 +78,8 @@ test('does not save generated files when isolated build fails', async (t) => {
   assert.equal(r.status, 422);
   assert.match((await r.json()).error, /Vite build failed/);
   assert.equal((await store.getProject(user.id, project.id)).files.length, 0);
+  assert.equal((await store.getBillingState(user.id)).creditsBalance, 50);
 });
-
 test('does not accept a user-selected model', async (t) => {
   let calls = 0;
   const { base, cookie, project } = await setup(t, async (url, options) => {
@@ -87,7 +92,7 @@ test('does not accept a user-selected model', async (t) => {
   assert.equal(r.status, 200);
   assert.equal(calls, 4);
 });
-test('rejects unsafe generated paths before writing any files', async (t) => {
+test('rejects unsafe generated paths and refunds credits', async (t) => {
   let codingCalls = 0;
   const { base, cookie, store, user, project } = await setup(t, async (url, options) => {
     const body = JSON.parse(options.body);
@@ -101,9 +106,21 @@ test('rejects unsafe generated paths before writing any files', async (t) => {
   });
   assert.equal(r.status, 502);
   assert.equal((await store.getProject(user.id, project.id)).files.length, 0);
+  assert.equal((await store.getBillingState(user.id)).creditsBalance, 50);
 });
-
-
+test('rejects generation before calling Core when the account has insufficient credits', async (t) => {
+  let calls = 0;
+  const { base, cookie, project, store, user } = await setup(t, async () => {
+    calls++;
+    return response('chat', 'unused');
+  }, async () => ({ success: true }), undefined, 0);
+  const r = await fetch(base + '/api/projects/' + project.id + '/generate', {
+    method: 'POST', headers: { Cookie: cookie, 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: 'Create an app' })
+  });
+  assert.equal(r.status, 402);
+  assert.equal(calls, 0);
+  assert.equal((await store.getBillingState(user.id)).creditsBalance, 0);
+});
 test('uses the server-side Builder Core key without requiring a user key', async (t) => {
   const calls = [];
   const serviceKey = '4ndev_sk_server_side_service_key_012345';
