@@ -180,8 +180,11 @@ export function createFreePrototypeApi({ store, buildValidator = async () => ({ 
       const template = chooseTemplate(prompt);
       const files = makeFiles({ projectName: project.name, prompt, template });
       if (files.length > MAX_FILES) return send(res, 500, { success: false, error: 'Prototype template exceeds the file limit.' });
-      await buildValidator(files);
-      const savedFiles = await store.putFiles(user.id, match[1], files);
+      const buildResult = await buildValidator(files);
+      const filesToSave = buildResult?.previewHtml
+        ? [...files, { path: '__4ndev_preview.html', content: buildResult.previewHtml }]
+        : files;
+      const savedFiles = await store.putFiles(user.id, match[1], filesToSave);
       if (!savedFiles) return send(res, 404, { success: false, error: 'Project not found while saving prototype.' });
       return send(res, 200, {
         success: true,
@@ -189,7 +192,8 @@ export function createFreePrototypeApi({ store, buildValidator = async () => ({ 
         generationMode: 'free',
         coreCalls: 0,
         project: await store.getProject(user.id, match[1]),
-        generatedFiles: savedFiles,
+        generatedFiles: files,
+        previewAvailable: Boolean(buildResult?.previewHtml),
         template
       });
     } catch (error) {
