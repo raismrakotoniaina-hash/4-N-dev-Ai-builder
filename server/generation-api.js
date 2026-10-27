@@ -68,6 +68,12 @@ export function createGenerationApi({store,fetchImpl=globalThis.fetch,coreApiUrl
    const prompt=typeof body.prompt==='string'?body.prompt.trim():'';
    if(!prompt||prompt.length>12000)return send(res,400,{success:false,error:'Describe the app in 1–12,000 characters.'});
    const project=await store.getProject(user.id,m[1]);if(!project)return send(res,404,{success:false,error:'Project not found.'});
+   if(typeof store.getBillingState!=='function')return send(res,503,{success:false,error:'Subscription status is unavailable.'});
+   const billing=await store.getBillingState(user.id);
+   const subscription=billing?.subscription;
+   if(!subscription||subscription.plan==='free'||subscription.status!=='active'||Date.parse(subscription.periodEnd)<=Date.now()){
+    return send(res,403,{success:false,error:'An active paid subscription is required for premium generation.'});
+   }
    const key=coreApiKey||await store.getCoreKey(user.id);if(!key)return send(res,503,{success:false,error:'Builder Core service key is not configured.'});
    setProgress(user.id,m[1],'Voaray ny prompt; manamarina kaonty sy manomana ny génération.');
    if(typeof store.consumeCredits!=='function'||typeof store.grantCredits!=='function')return send(res,503,{success:false,error:'Builder credit accounting is not configured.'});
@@ -79,12 +85,12 @@ export function createGenerationApi({store,fetchImpl=globalThis.fetch,coreApiUrl
     if(error.code==='INSUFFICIENT_CREDITS')return send(res,402,{success:false,error:'Insufficient Builder credits. Choose a paid plan or add credits before generating.'});
     throw error;
    }
-   setProgress(user.id,m[1],'Manao plan ny application amin’ny modely planner.');
+   setProgress(user.id,m[1],'Mandrafitra ny application.');
    const plan=await callCore(fetchImpl,coreApiUrl,key,'chat',{model:PIPELINE.planner,max_output_tokens:700,messages:[
     {role:'system',content:'You are the lead architect of a production web app builder. Convert the user request into a concise implementation plan. Identify pages, features, data entities, validation, security and responsive behavior. No source code.'},
     {role:'user',content:prompt}
    ]});
-   setProgress(user.id,m[1],'Mandini-tena ny plan sy manitsy izay fepetra tsy ampy.');
+   setProgress(user.id,m[1],'Manatsara ny drafitry ny application.');
    const planReview=await callCore(fetchImpl,coreApiUrl,key,'chat',{model:PIPELINE.plannerReview,max_output_tokens:500,messages:[
     {role:'system',content:'Review the app plan for missing requirements, unsafe assumptions and implementation gaps. Return an improved concise plan only.'},
     {role:'user',content:'User request:\n'+prompt+'\n\nDraft plan:\n'+(plan.data?.message?.content||'')}
@@ -100,9 +106,9 @@ export function createGenerationApi({store,fetchImpl=globalThis.fetch,coreApiUrl
     'Original user request:',prompt,
     'Implementation plan:',planReview.data?.message?.content||plan.data?.message?.content||''
    ].join('\n');
-   setProgress(user.id,m[1],'Manoratra ny rakitra application amin’ny modely coding.');
+   setProgress(user.id,m[1],'Manoratra ny rakitra application.');
    const result=await callCore(fetchImpl,coreApiUrl,key,'coding',{model:PIPELINE.coder,language:'JSON',max_output_tokens:3000,prompt:codingPrompt});
-   setProgress(user.id,m[1],'Mandini-kaody sy manatsara ny rakitra vokarina.');
+   setProgress(user.id,m[1],'Manamarina sy manatsara ny kaody.');
    const review=await callCore(fetchImpl,coreApiUrl,key,'coding',{model:PIPELINE.codeReviewer,language:'JSON',max_output_tokens:3000,prompt:[
     'Review and improve the generated app files. Return ONLY valid JSON with the same schema {"files":[{"path":"...","content":"..."}]}.',
     'Keep the application requirements and existing file paths where possible. Fix missing imports, obvious type/build errors, incomplete UI and security issues. Return a complete replacement file set, max 20 files.',
@@ -110,14 +116,14 @@ export function createGenerationApi({store,fetchImpl=globalThis.fetch,coreApiUrl
     'Implementation plan:',planReview.data?.message?.content||plan.data?.message?.content||'',
     'Generated files:',JSON.stringify(JSON.parse(result.data?.output?.trim()||'{}'))
    ].join('\n')});
-   setProgress(user.id,m[1],'Manamarina ny rafitry ny rakitra sy ny fiarovana azy.');
+   setProgress(user.id,m[1],'Manamarina ny rakitra sy ny fiarovana azy.');
    let files;try{files=parseFiles(review.data?.output);}catch(e){setProgress(user.id,m[1],'TSY TAFITA: '+e.message,'failed');if(!await refundFailedGeneration())return refundPendingResponse();return send(res,502,{success:false,error:e.message,usage:result.usage});}
-   setProgress(user.id,m[1],'Manangana sy mitsapa ny application ao amin’ny build worker mitokana.');
+   setProgress(user.id,m[1],'Manangana sy mitsapa ny application.');
    try{await buildValidator(files);}catch(e){setProgress(user.id,m[1],'TSY TAFITA: tsy nahomby ny build: '+e.message,'failed');if(!await refundFailedGeneration())return refundPendingResponse();return send(res,e.statusCode||422,{success:false,error:'Generated app failed isolated build validation: '+e.message,usage:result.usage});}
-   setProgress(user.id,m[1],'Nahomby ny build; mitahiry ny rakitra ao amin’ny tetikasa.');
+   setProgress(user.id,m[1],'Nahomby ny fanamarinana; mitahiry ny application.');
    const savedFiles=await store.putFiles(user.id,m[1],files);if(!savedFiles){setProgress(user.id,m[1],'TSY TAFITA: tsy voatahiry ny rakitra.','failed');if(!await refundFailedGeneration())return refundPendingResponse();return send(res,404,{success:false,error:'Project not found while saving files.'});}
    generationCommitted=true;
-   setProgress(user.id,m[1],'VITA: voatahiry ny rakitra ary nahomby ny build.','completed');
+   setProgress(user.id,m[1],'VITA: voatahiry sy voamarina ny application.','completed');
    return send(res,200,{success:true,project:await store.getProject(user.id,m[1]),generatedFiles:files,modelsUsed:Object.values(PIPELINE),creditsCharged:GENERATION_CREDIT_COST,usage:{charged_usd:[plan.usage,planReview.usage,result.usage,review.usage].reduce((sum,item)=>sum+Number(item?.charged_usd||0),0),currency:'USD',calls:{planner:plan.usage,plannerReview:planReview.usage,coder:result.usage,codeReviewer:review.usage}}});
   }catch(e){setProgress(user.id,m[1],'TSY TAFITA: '+(e.statusCode?e.message:'Generation failed unexpectedly.'),'failed');if(!await refundFailedGeneration())return refundPendingResponse();return send(res,e.statusCode||502,{success:false,error:e.statusCode?e.message:'Generation failed unexpectedly.'});}
  };
