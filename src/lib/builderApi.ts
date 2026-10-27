@@ -63,6 +63,9 @@ export const builderApi = {
   generateProject(id: string, prompt: string): Promise<GenerationResult> {
     return request<GenerationResult & { success: true }>(`/api/projects/${id}/generate`, { method: 'POST', body: JSON.stringify({ prompt }) });
   },
+  generationStatus(id: string): Promise<{ state: string; steps: Array<{ message: string; at: string }>; updatedAt: string | null }> {
+    return request<{ success: true; progress: { state: string; steps: Array<{ message: string; at: string }>; updatedAt: string | null } }>(`/api/projects/${id}/generation-status`).then((result) => result.progress);
+  },
   connectCore(apiKey: string): Promise<void> {
     return request('/api/core/connect', { method: 'POST', body: JSON.stringify({ apiKey }) }).then(() => undefined);
   },
