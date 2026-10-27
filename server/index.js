@@ -2,6 +2,7 @@ import { createServer } from 'node:http';
 import { createPersistence } from './persistence.js';
 import { createConfiguredStore } from './store-factory.js';
 import { createAuthApi } from './auth-api.js';
+import { createBillingApi } from './billing-api.js';
 import { createGenerationApi } from './generation-api.js';
 import { createFreePrototypeApi } from './free-prototype-api.js';
 import { validateBuild } from './build-worker-client.js';
@@ -35,6 +36,7 @@ export function createBuilderServer({
   coreApiKey = process.env.BUILDER_CORE_API_KEY
 } = {}) {
   const authApi = createAuthApi({ store, fetchImpl, coreApiUrl });
+  const billingApi = createBillingApi({ store });
   const generationApi = createGenerationApi({ store, fetchImpl, coreApiUrl, coreApiKey, buildValidator });
   const freePrototypeApi = createFreePrototypeApi({ store, buildValidator });
   return createServer(async (req, res) => {
@@ -97,6 +99,8 @@ export function createBuilderServer({
     if (prototype !== false) return;
     const generated = await generationApi(req, res, url);
     if (generated !== false) return;
+    const billing = await billingApi(req, res, url);
+    if (billing !== false) return;
     const handled = await authApi(req, res, url);
     if (handled !== false) return;
 
