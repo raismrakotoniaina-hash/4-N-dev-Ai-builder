@@ -136,3 +136,33 @@ test('uses the server-side Builder Core key without requiring a user key', async
   assert.equal(calls.length, 4);
   assert.ok(calls.every((auth) => auth === 'Bearer ' + serviceKey));
 });
+
+test('reports an unconfirmed credit refund instead of silently swallowing persistence failures', async (t) => {
+  let codingCalls = 0;
+  const { base, cookie, store, user, project } = await setup(t, async (url, options) => {
+    const body = JSON.parse(options.body);
+    if (url.endsWith('/v1/chat')) return response('chat', body.model);
+    codingCalls++;
+    const files = codingCalls === 1
+      ? goodFiles
+      : [{ path: 'package.json', content: '{}' }, { path: '../unsafe', content: 'bad' }];
+    return new Response(JSON.stringify({
+      success: true,
+      data: { output: JSON.stringify({ files }) },
+      usage: { charged_usd: 0.01, currency: 'USD' }
+    }), { status: 200 });
+  });
+  store.grantCredits = async () => { throw new Error('simulated database outage'); };
+
+  const r = await fetch(base + '/api/projects/' + project.id + '/generate', {
+    method: 'POST',
+    headers: { Cookie: cookie, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt: 'Create an app' })
+  });
+  const payload = await r.json();
+  assert.equal(r.status, 500);
+  assert.equal(payload.refundPending, true);
+  assert.match(payload.error, /refund could not be confirmed/i);
+  assert.equal(payload.jobId.length > 0, true);
+  assert.equal((await store.getBillingState(user.id)).creditsBalance, 40);
+});
