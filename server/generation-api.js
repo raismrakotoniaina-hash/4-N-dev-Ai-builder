@@ -97,7 +97,7 @@ export function createGenerationApi({store,fetchImpl=globalThis.fetch,coreApiUrl
    ]});
    const codingPrompt=[
     'Generate a runnable multi-file React + TypeScript + Vite web app.',
-    ...(/target platform:\\s*mobile|mobile app|application mobile|react native|expo|android app|ios app/i.test(prompt) ? [ 'The user requested a mobile app. In addition to the buildable root web app, generate an Expo React Native source project under mobile/ with mobile/package.json, mobile/app.json, and mobile/App.tsx. Keep the root package.json Vite buildable; do not add Expo or React Native dependencies to the root package. Use a clear, app-specific mobile screen. The mobile source is not part of the Vite build.' ] : []),
+    ...(/target platform:\s*mobile|mobile app|application mobile|react native|expo|android app|ios app/i.test(prompt) ? [ 'The user requested a mobile app. In addition to the buildable root web app, generate an Expo React Native source project under mobile/ with mobile/package.json, mobile/app.json, and mobile/App.tsx. Keep the root package.json Vite buildable; do not add Expo or React Native dependencies to the root package. Use a clear, app-specific mobile screen. The mobile source is not part of the Vite build.' ] : []),
     'Return ONLY valid JSON: {"files":[{"path":"package.json","content":"..."}]}. Content values must be JSON strings.',
     'Include package.json, index.html, src/main.tsx, src/App.tsx and src/index.css as appropriate.',
     'Responsive polished UI; complete imports and build scripts. No prose, secrets, node_modules or lockfiles. Max 20 files.',
