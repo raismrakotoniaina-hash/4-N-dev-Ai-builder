@@ -6,7 +6,7 @@ import { builderApi, type BuilderBilling, type BuilderUser } from './lib/builder
 import { useLanguage } from './lib/i18n';
 import type { AppView, Project, ProjectFile } from './types/app';
 
-type ProjectWithFiles = Project & { files?: ProjectFile[]; fileCount?: number };
+type ProjectWithFiles = Project & { files?: ProjectFile[]; fileCount?: number; previewHtml?: string };
 
 function App() {
   const { t } = useLanguage();
@@ -20,6 +20,7 @@ function App() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [selected, setSelected] = useState<ProjectWithFiles | null>(null);
   const [prompt, setPrompt] = useState('');
+  const [appTarget, setAppTarget] = useState<'web' | 'mobile'>('web');
   const [message, setMessage] = useState('Midira na mamoròna kaonty hanombohana.');
   const [busy, setBusy] = useState(false);
   const [generationLog, setGenerationLog] = useState<string[]>([]);
@@ -104,9 +105,10 @@ function App() {
     if (!prompt.trim() || !user || busy) return;
     setBusy(true);
     const description = prompt.trim();
-    setGenerationLog(['Miomana handefa ny prompt amin’ny serveur…']);
+    const generationPrompt = appTarget === 'mobile' ? description + '\nTarget platform: mobile app (Expo React Native). Include the app-specific mobile source under mobile/ and keep the root web preview buildable.' : description;
+    setGenerationLog(['Manomana ny application…']);
     setActiveView('builder');
-    setMessage('Generation AI tena izy no mandeha; 10 crédit Builder no sarany raha vita soa aman-tsara.');
+    setMessage('Mamorona ny application…');
     let progressPoller: number | undefined;
     try {
       const project = await builderApi.createProject(description.slice(0, 120), description.slice(0, 2000));
@@ -118,17 +120,19 @@ function App() {
           // Keep the current progress visible if a single status poll fails.
         }
       }, 1000);
-      const generated = await builderApi.generateProject(project.id, description);
+      const generated = await builderApi.generateProject(project.id, generationPrompt);
       if (progressPoller !== undefined) window.clearInterval(progressPoller);
       const finalStatus = await builderApi.generationStatus(project.id).catch(() => null);
       if (finalStatus?.steps.length) setGenerationLog(finalStatus.steps.map((step) => step.message));
       else setGenerationLog((previous) => [...previous, 'VITA: voatahiry ny rakitra ary nahomby ny build.']);
       await refreshProjects();
-      setSelected({ ...(generated.project as ProjectWithFiles), files: generated.generatedFiles as ProjectFile[] });
+      const storedFiles = (generated.project as ProjectWithFiles).files || [];
+      const previewHtml = storedFiles.find((file) => file.path === '__4ndev_preview.html')?.content;
+      setSelected({ ...(generated.project as ProjectWithFiles), files: generated.generatedFiles as ProjectFile[], previewHtml });
       setPrompt('');
       setModal(false);
-      setActiveView('files');
-      setMessage('Nahomby ny generation AI. Rakitra: ' + generated.generatedFiles.length + '. Crédit nampiasaina: ' + (generated.creditsCharged ?? 10) + '.');
+      setActiveView(generated.previewAvailable ? 'preview' : 'files');
+      setMessage('Vita ny application. Rakitra: ' + generated.generatedFiles.length + (generated.mode === 'free-template' ? '.' : '. Crédit nampiasaina: ' + (generated.creditsCharged ?? 10) + '.'));
     } catch (error) {
       if (progressPoller !== undefined) window.clearInterval(progressPoller);
       const detail = error instanceof Error ? error.message : 'Tsy nahomby ny génération AI.';
@@ -183,16 +187,17 @@ function App() {
                 <h2>{busy ? 'Mandroso ny generation AI…' : 'Tatitra generation AI'}</h2>
                 <p>Ireo dingana ireo dia tatitra avy amin’ny serveur, havaozina isaky ny mandroso ny Core na ny build worker.</p>
                 <ol className="generation-log">{generationLog.map((line, index) => <li key={index} className={line.startsWith('VITA:') ? 'generation-log__done' : line.startsWith('TSY TAFITA:') ? 'generation-log__error' : ''}>{line}</li>)}</ol>
-                {busy && <div className="generation-progress__bar" role="progressbar" aria-label="Generation AI mandeha"><span /></div>}
+                {busy && <div className="generation-progress__bar" role="progressbar" aria-label="Famoronana application mandeha"><span /></div>}
                 <div ref={logEndRef} />
               </section>}
 
               {activeView === 'dashboard' && <section className="workspace-grid">
                 <div className="workspace-card workspace-hero">
                   <span className="eyebrow">{t('BUILD WITH AI')}</span><h2>{t('Farito ny tetikasanao.')}</h2>
-                  <p>Generation AI tena izy: mandrindra modely 4 ao amin’ny Core, manoratra kaody, mandinika azy ary manao build mitokana. Sarany: 10 crédit Builder raha vita.</p>
+                  <p>Mamoròna application web na mobile. Hamarinin’ny Builder ny build web; raha mobile no safidy dia tehirizina miaraka aminy ny loharano Expo.</p>
+                  <label style={{ display: 'grid', gap: '8px', marginBottom: '12px' }}><span>Karazana application</span><select value={appTarget} onChange={(event) => setAppTarget(event.target.value as 'web' | 'mobile')} style={{ padding: '12px', borderRadius: '10px', border: '1px solid #dbe2ee', background: '#fff' }}><option value="web">Web application</option><option value="mobile">Application mobile (Expo / React Native)</option></select></label>
                   <textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder={t('Ohatra: Mamoròna boutique misy catalogue, panier ary espace admin…')} />
-                  <button disabled={busy || !prompt.trim()} onClick={createProject}>{busy ? 'Manao generation AI…' : 'Mamorona amin’ny AI (10 crédit rehefa vita)'}</button>
+                  <button disabled={busy || !prompt.trim()} onClick={createProject}>{busy ? 'Mamorona application…' : 'Mamorona application'}</button>
                 </div>
                 <div className="workspace-card"><h3>{t('Tetikasa')}</h3><strong>{projects.length}</strong><p>{t('Voatahiry isaky ny kaonty.')}</p>
                   {projects.slice(0, 5).map((project) => <button className="project-row" key={project.id} onClick={() => openProject(project)}>{project.name}</button>)}
@@ -200,11 +205,13 @@ function App() {
                 <div className="workspace-card"><h3>{t('Core services')}</h3><p>Model catalogue · Core balance · Project storage</p><span className="core-badge">CORE MANAGED BY DEVELOPER</span></div>
               </section>}
 
-              {activeView === 'builder' && <section className="workspace-card"><h2>AI Builder</h2><textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder={t('Farito ny zavatra tianao hatsangana…')} /><button disabled={busy || !prompt.trim()} onClick={createProject}>{busy ? 'Mitahiry…' : 'Mamorona sy mitahiry tetikasa'}</button><p>Ny AI Builder no mandrindra ny modely Core ao ambadika.</p></section>}
+              {activeView === 'builder' && <section className="workspace-card"><h2>AI Builder</h2><textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder={t('Farito ny zavatra tianao hatsangana…')} /><button disabled={busy || !prompt.trim()} onClick={createProject}>{busy ? 'Mitahiry…' : 'Mamorona sy mitahiry tetikasa'}</button><p>Farito ny application tianao hatsangana, dia tehirizo ao amin’ny tetikasanao.</p></section>}
 
               {activeView === 'projects' && <section className="workspace-card"><h2>{t('Ny tetikasako')}</h2><p>Tehirizina ao amin’ny backend, ary ny tompony ihany no mahazo azy.</p>{projects.map((project) => <button className="project-row" key={project.id} onClick={() => openProject(project)}>{project.name}</button>)}{!projects.length && <p>{t('Tsy mbola misy tetikasa.')}</p>}</section>}
 
-              {activeView === 'files' && <section className="workspace-card"><h2>{selected?.name || 'Rakitra tetikasa'}</h2>{selected?.files?.length ? selected.files.map((file) => <div className="file-row" key={file.path}><code>{file.path}</code><span>{file.content.length} chars</span><details><summary>{t('Jereo ny kaody')}</summary><pre>{file.content}</pre></details></div>) : <p>{selected ? 'Mbola tsy misy rakitra voatahiry ao amin’ity tetikasa ity.' : 'Misafidiana tetikasa ao amin’ny Projects.'}</p>}</section>}
+              {activeView === 'preview' && <section className="workspace-card"><h2>{selected?.name || 'Preview application'}</h2>{selected?.previewHtml || selected?.files?.some((file) => file.path === '__4ndev_preview.html') ? <iframe title={'Preview ' + (selected?.name || 'application')} sandbox="allow-scripts" referrerPolicy="no-referrer" srcDoc={selected?.previewHtml || selected?.files?.find((file) => file.path === '__4ndev_preview.html')?.content} style={{ width: '100%', minHeight: '70vh', border: '1px solid #dbe2ee', borderRadius: '12px', background: '#fff' }} /> : <p>Tsy mbola misy preview voaorina ho an’ity tetikasa ity. Avereno ny generation rehefa misy ny build worker.</p>}<button onClick={() => setActiveView('files')}>Hijery ny rakitra</button></section>}
+
+              {activeView === 'files' && <section className="workspace-card"><h2>{selected?.name || 'Rakitra tetikasa'}</h2>{selected?.files?.filter((file) => file.path !== '__4ndev_preview.html').length ? selected.files.filter((file) => file.path !== '__4ndev_preview.html').map((file) => <div className="file-row" key={file.path}><code>{file.path}</code><span>{file.content.length} chars</span><details><summary>{t('Jereo ny kaody')}</summary><pre>{file.content}</pre></details></div>) : <p>{selected ? 'Mbola tsy misy rakitra voatahiry ao amin’ity tetikasa ity.' : 'Misafidiana tetikasa ao amin’ny Projects.'}</p>}</section>}
 
               {activeView === 'help' && <section className="workspace-card"><h2>{currentPage.label === 'Help Center' ? currentPage.label : 'Help Center'}</h2><p>Fanampiana amin’ny kaonty, famoronana tetikasa, fitahirizana rakitra ary famahana hadisoana.</p><p>Raha tsy mandeha ny génération, jereo ny hafatra aseho eo ambony ary aza averina imbetsaka ny fangatahana raha misy mety handany crédit.</p></section>}
 
@@ -225,7 +232,7 @@ function App() {
                           <p><strong>${(price / 100).toFixed(2)} USD</strong> {billingInterval === 'monthly' ? '/ volana' : '/ 12 volana'}</p>
                           {billingInterval === 'yearly' && plan.yearlySavingsUsdCents !== null && <p>Mitahiry ${(plan.yearlySavingsUsdCents / 100).toFixed(2)} USD isan-taona · mitovy amin’ny ${(plan.yearlyMonthlyEquivalentUsdCents / 100).toFixed(2)} USD/volana</p>}
                           <p>Crédit omena isam-bolana: {plan.monthlyCredits}</p>
-                          {plan.prototypeOnly && <p>Prototype Free ihany</p>}
+                          {plan.prototypeOnly && <p>Famoronana maimaim-poana</p>}
                         </article>;
                       })}
                     </div>
@@ -241,14 +248,14 @@ function App() {
                 </section>
               </>}
 
-              {!['dashboard', 'builder', 'projects', 'files', 'settings', 'help'].includes(activeView) && <section className="workspace-card"><h2>{currentPage.label}</h2><p>Hovelarina aorian’ny fametrahana ny pipeline build voaaro sy preview mitokana.</p></section>}
+              {!['dashboard', 'builder', 'projects', 'files', 'preview', 'settings', 'help'].includes(activeView) && <section className="workspace-card"><h2>{currentPage.label}</h2><p>Misafidiana tetikasa iray hanohizana.</p></section>}
             </>
           )}
         </div>
       </AppLayout>
-      <Modal isOpen={modal && Boolean(user)} onClose={() => setModal(false)} title="Tetikasa AI vaovao" description="Mamorona prototype amin’ny algorithm sy templates. Tsy miantso 4N DEV Core ary tsy mandany crédit.">
+      <Modal isOpen={modal && Boolean(user)} onClose={() => setModal(false)} title="Tetikasa AI vaovao" description="Farito ny application tianao hatsangana. Ho voatahiry ao amin’ny tetikasanao ny rakitra.">
         <textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder={t('Farito ny tetikasa…')} />
-        <button disabled={busy || !prompt.trim()} onClick={createProject}>{busy ? 'Mamorona amin’ny AI…' : 'Mamorona application'}</button>
+        <button disabled={busy || !prompt.trim()} onClick={createProject}>{busy ? 'Mamorona application…' : 'Mamorona application'}</button>
       </Modal>
     </>
   );

@@ -1,6 +1,6 @@
 const COOKIE = 'builder_session';
-const MAX_PROMPT = 4000;
-const MAX_FILES = 8;
+const MAX_PROMPT = 12000;
+const MAX_FILES = 12;
 
 function cookieValue(header = '') {
   for (const item of header.split(';')) {
@@ -70,19 +70,19 @@ export default function App() {
   const items = sections[template] || sections.landing;
   return (
     <main className="page">
-      <nav className="nav"><span className="brand">{projectName}</span><span className="badge">Prototype Free</span></nav>
+      <nav className="nav"><span className="brand">{projectName}</span><span className="badge">4N DEV</span></nav>
       <section className="hero">
         <p className="eyebrow">4N DEV AI BUILDER · {template.toUpperCase()}</p>
         <h1>{projectName}</h1>
-        <p className="lead">{description || 'Prototype voalohany azo ovaina sy hatsaraina.'}</p>
+        <p className="lead">{description || 'Application azo ovaina sy hatsaraina.'}</p>
         <a className="button" href="#contenu">Hijery ny votoaty</a>
       </section>
       <section id="contenu" className="content">
-        <h2>Fototra azo hatsaraina</h2>
+        <h2>Votoatin’ny application</h2>
         <div className="tabs">{items.map((item, index) => <button key={item.title} className={active === index ? 'tab active' : 'tab'} onClick={() => setActive(index)}>{item.title}</button>)}</div>
         <article className="card"><span className="number">0{active + 1}</span><h3>{items[active].title}</h3><p>{items[active].text}</p></article>
       </section>
-      <footer>Prototype noforonina tamin’ny algorithm sy template — tsy nampiasa 4N DEV Core.</footer>
+      <footer>Noforonina tamin’ny 4N DEV AI Builder.</footer>
     </main>
   );
 }
@@ -114,7 +114,7 @@ footer { padding:1.5rem; text-align:center; color:#6a7487; font-size:.85rem; bor
 @media (max-width:600px) { .nav { padding:1rem; } .tabs { display:grid; grid-template-columns:1fr; } .tab { text-align:left; } }
 `;
   const packageJson = JSON.stringify({
-    name: '4ndev-free-prototype',
+    name: '4ndev-generated-app',
     private: true,
     version: '1.0.0',
     type: 'module',
@@ -130,54 +130,82 @@ footer { padding:1.5rem; text-align:center; color:#6a7487; font-size:.85rem; bor
     },
     include: ['src']
   }, null, 2);
-  return [
+  const files = [
     { path: 'package.json', content: packageJson },
-    { path: 'index.html', content: '<!doctype html><html lang="mg"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><meta name="description" content="4N DEV Free prototype"/><title>4N DEV Free Prototype</title></head><body><div id="root"></div><script type="module" src="/src/main.tsx"></script></body></html>' },
+    { path: 'index.html', content: '<!doctype html><html lang="mg"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><meta name="description" content="4N DEV AI Builder"/><title>4N DEV AI Builder</title></head><body><div id="root"></div><script type="module" src="/src/main.tsx"></script></body></html>' },
     { path: 'tsconfig.json', content: tsconfig },
     { path: 'vite.config.ts', content: "import { defineConfig } from 'vite';\nimport react from '@vitejs/plugin-react';\nexport default defineConfig({ plugins: [react()] });\n" },
     { path: 'src/main.tsx', content: "import { StrictMode } from 'react';\nimport { createRoot } from 'react-dom/client';\nimport App from './App';\nimport './index.css';\n\ncreateRoot(document.getElementById('root')!).render(<StrictMode><App /></StrictMode>);\n" },
     { path: 'src/App.tsx', content: app },
     { path: 'src/index.css', content: css }
-  ].slice(0, MAX_FILES);
+  ];
+  if (/target platform:\s*mobile|mobile app|application mobile|react native|expo|android app|ios app/i.test(prompt)) {
+    files.push(
+      { path: 'mobile/package.json', content: JSON.stringify({ name: '4ndev-mobile-app', version: '1.0.0', private: true, main: 'node_modules/expo/AppEntry.js', scripts: { start: 'expo start', android: 'expo start --android', ios: 'expo start --ios' }, dependencies: { expo: '53.0.20', 'expo-status-bar': '2.2.3', react: '19.0.0', 'react-native': '0.79.5' } }, null, 2) },
+      { path: 'mobile/app.json', content: JSON.stringify({ expo: { name: safeName, slug: '4ndev-mobile-app', version: '1.0.0', orientation: 'portrait', userInterfaceStyle: 'automatic', ios: { supportsTablet: true }, android: { adaptiveIcon: { backgroundColor: '#ffffff' } } } }, null, 2) },
+      { path: 'mobile/App.tsx', content: "import { StatusBar } from 'expo-status-bar';\nimport { SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';\n\nexport default function App() {\n  return <SafeAreaView style={styles.safe}><StatusBar style=\"auto\" /><ScrollView contentContainerStyle={styles.page}><Text style={styles.eyebrow}>4N DEV · MOBILE</Text><Text style={styles.title}>" + safeName.replace(/</g, '&lt;') + "</Text><Text style={styles.description}>" + description.replace(/</g, '&lt;') + "</Text><View style={styles.card}><Text style={styles.heading}>Tongasoa</Text><Text style={styles.body}>Eto no hanombohana ny efijery sy ny endri-javatra an’ny application-nao.</Text></View><View style={styles.card}><Text style={styles.heading}>Dingana manaraka</Text><Text style={styles.body}>Ampio eto ny pejy, ny fitantanana angona ary ny fifandraisana ilain’ny tetikasanao.</Text></View></ScrollView></SafeAreaView>;\n}\n\nconst styles = StyleSheet.create({ safe: { flex: 1, backgroundColor: '#f4f7fc' }, page: { padding: 24, gap: 16 }, eyebrow: { color: '#2458d3', fontWeight: '800', letterSpacing: 2 }, title: { color: '#172033', fontSize: 32, fontWeight: '800' }, description: { color: '#59657a', fontSize: 16, lineHeight: 24 }, card: { backgroundColor: '#fff', borderRadius: 16, padding: 20, gap: 8 }, heading: { fontSize: 20, fontWeight: '700', color: '#172033' }, body: { color: '#59657a', fontSize: 15, lineHeight: 22 } });\n" }
+    );
+  }
+  return files.slice(0, MAX_FILES);
 }
 
 export function createFreePrototypeApi({ store, buildValidator = async () => ({ success: true }) }) {
   return async function freePrototypeApi(req, res, url) {
-    const match = url.pathname.match(/^\/api\/projects\/([0-9a-f-]{36})\/prototype$/i);
+    const match = url.pathname.match(/^\/api\/projects\/([0-9a-f-]{36})\/(prototype|generate)$/i);
     if (!match || req.method !== 'POST') return false;
     const user = await store.getUserForSession(cookieValue(req.headers.cookie));
     if (!user) return send(res, 401, { success: false, error: 'Authentication required.' });
+    // The single /generate endpoint chooses the route server-side. Free or inactive
+    // subscriptions use the local template generator; only an active paid plan
+    // falls through to the Core generation handler.
+    if (match[2].toLowerCase() === 'generate') {
+      if (typeof store.getBillingState !== 'function') {
+        return send(res, 503, { success: false, error: 'Subscription status is unavailable.' });
+      }
+      const billing = await store.getBillingState(user.id);
+      const subscription = billing?.subscription;
+      const paidAndActive = subscription
+        && subscription.plan !== 'free'
+        && subscription.status === 'active'
+        && Date.parse(subscription.periodEnd) > Date.now();
+      if (paidAndActive) return false;
+    }
     try {
       const chunks = [];
       let size = 0;
       for await (const chunk of req) {
         size += chunk.length;
-        if (size > 8000) return send(res, 413, { success: false, error: 'Prototype request is too large.' });
+        if (size > 16000) return send(res, 413, { success: false, error: 'Generation request is too large.' });
         chunks.push(chunk);
       }
       let body;
       try { body = chunks.length ? JSON.parse(Buffer.concat(chunks).toString('utf8')) : {}; }
       catch { return send(res, 400, { success: false, error: 'Request body must be valid JSON.' }); }
       const prompt = typeof body.prompt === 'string' ? body.prompt.trim() : '';
-      if (!prompt || prompt.length > MAX_PROMPT) return send(res, 400, { success: false, error: 'Describe the prototype in 1–4,000 characters.' });
+      if (!prompt || prompt.length > MAX_PROMPT) return send(res, 400, { success: false, error: 'Describe the app in 1–12,000 characters.' });
       const project = await store.getProject(user.id, match[1]);
       if (!project) return send(res, 404, { success: false, error: 'Project not found.' });
       const template = chooseTemplate(prompt);
       const files = makeFiles({ projectName: project.name, prompt, template });
       if (files.length > MAX_FILES) return send(res, 500, { success: false, error: 'Prototype template exceeds the file limit.' });
-      await buildValidator(files);
-      const savedFiles = await store.putFiles(user.id, match[1], files);
+      const buildResult = await buildValidator(files);
+      const filesToSave = buildResult?.previewHtml
+        ? [...files, { path: '__4ndev_preview.html', content: buildResult.previewHtml }]
+        : files;
+      const savedFiles = await store.putFiles(user.id, match[1], filesToSave);
       if (!savedFiles) return send(res, 404, { success: false, error: 'Project not found while saving prototype.' });
       return send(res, 200, {
         success: true,
         mode: 'free-template',
+        generationMode: 'free',
         coreCalls: 0,
         project: await store.getProject(user.id, match[1]),
-        generatedFiles: savedFiles,
+        generatedFiles: files,
+        previewAvailable: Boolean(buildResult?.previewHtml),
         template
       });
     } catch (error) {
-      return send(res, error.statusCode || 422, { success: false, error: error.statusCode ? error.message : 'Free prototype generation failed.' });
+      return send(res, error.statusCode || 422, { success: false, error: error.statusCode ? error.message : 'Application generation failed.' });
     }
   };
 }

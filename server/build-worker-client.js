@@ -1,7 +1,7 @@
 import { createConnection } from 'node:net';
 
 const SOCKET_PATH = process.env.BUILDER_WORKER_SOCKET || '/run/4n-dev-ai-builder-worker/worker.sock';
-const MAX_RESPONSE_BYTES = 16_000;
+const MAX_RESPONSE_BYTES = 1_000_000;
 const REQUEST_TIMEOUT_MS = 130_000;
 
 export function validateBuild(files, { socketPath = SOCKET_PATH, timeoutMs = REQUEST_TIMEOUT_MS } = {}) {

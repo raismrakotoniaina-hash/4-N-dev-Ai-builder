@@ -44,7 +44,7 @@ test('template files form a bounded, runnable Vite app', () => {
   const pkg = JSON.parse(files.find(file => file.path === 'package.json').content);
   assert.equal(pkg.scripts.build, 'tsc -b && vite build');
   assert.equal(pkg.dependencies.react, '19.3.0');
-  assert.match(files.find(file => file.path === 'src/App.tsx').content, /Prototype Free/);
+  assert.match(files.find(file => file.path === 'src/App.tsx').content, /4N DEV/);
 });
 
 test('authenticated owner gets a saved prototype with zero Core calls', async () => {
@@ -132,7 +132,37 @@ test('overlong prompt is rejected before project lookup or build', async () => {
   };
   const handler = createFreePrototypeApi({ store, buildValidator: async () => { throw new Error('must not build'); } });
   const res = responseStub();
-  await handler(request({ body: { prompt: 'x'.repeat(4001) } }), res, new URL('/api/projects/' + PROJECT_ID + '/prototype', 'http://localhost'));
+  await handler(request({ body: { prompt: 'x'.repeat(12001) } }), res, new URL('/api/projects/' + PROJECT_ID + '/prototype', 'http://localhost'));
   assert.equal(res.statusCode, 400);
   assert.equal(projectLookups, 0);
+});
+
+
+test('mobile target includes a separate Expo source project while keeping the web build', () => {
+  const files = makeFiles({ projectName: 'Mobile Shop', prompt: 'Target platform: mobile app (Expo React Native). Create a shop app', template: 'business' });
+  assert.ok(files.some(file => file.path === 'package.json'));
+  assert.ok(files.some(file => file.path === 'index.html'));
+  assert.ok(files.some(file => file.path === 'mobile/package.json'));
+  assert.ok(files.some(file => file.path === 'mobile/app.json'));
+  assert.ok(files.some(file => file.path === 'mobile/App.tsx'));
+  assert.equal(JSON.parse(files.find(file => file.path === 'package.json').content).scripts.build, 'tsc -b && vite build');
+});
+
+test('saves an isolated preview artifact separately from user-visible source files', async () => {
+  const saved = [];
+  const previewHtml = '<!doctype html><html><head></head><body><main>Preview</main></body></html>';
+  const project = { id: PROJECT_ID, name: 'Preview project', files: [] };
+  const store = {
+    async getUserForSession() { return { id: 'user-1' }; },
+    async getProject() { return project; },
+    async putFiles(_userId, _projectId, files) { saved.push(...files); project.files = files; return files; }
+  };
+  const handler = createFreePrototypeApi({ store, buildValidator: async () => ({ success: true, previewHtml }) });
+  const res = responseStub();
+  await handler(request({ body: { prompt: 'Create a landing page' } }), res, new URL('/api/projects/' + PROJECT_ID + '/prototype', 'http://localhost'));
+  const result = JSON.parse(res.body);
+  assert.equal(res.statusCode, 200);
+  assert.equal(result.previewAvailable, true);
+  assert.ok(saved.some(file => file.path === '__4ndev_preview.html' && file.content === previewHtml));
+  assert.ok(result.generatedFiles.every(file => file.path !== '__4ndev_preview.html'));
 });
