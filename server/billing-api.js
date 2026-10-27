@@ -40,7 +40,16 @@ export function createBillingApi({ store }) {
         ...state,
         plans,
         paymentsEnabled: false,
-        renewalEnabled: false
+        renewalEnabled: false,
+        // Monthly quota issuance/expiry is intentionally reported as disabled
+        // until the transactional credit-lot lifecycle and scheduled renewal
+        // worker are implemented and tested.
+        creditsPolicy: {
+          monthlyGrantEnabled: false,
+          monthlyExpiryEnabled: false,
+          rolloverEnabled: false,
+          status: 'not_enabled'
+        }
       }
     });
   };
