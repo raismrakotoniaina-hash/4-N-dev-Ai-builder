@@ -17,11 +17,22 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 
 export interface BuilderUser { id: string; email: string; createdAt: string; }
+export interface BuilderBilling {
+  subscription: { plan: string; billingInterval: 'monthly' | 'yearly'; status: string; priceUsdCents: number; currency: string; periodStart: string | null; periodEnd: string | null; cancelAtPeriodEnd: boolean };
+  creditsBalance: number;
+  paymentsEnabled: boolean;
+  renewalEnabled: boolean;
+  creditsPolicy: { monthlyGrantEnabled: boolean; monthlyExpiryEnabled: boolean; rolloverEnabled: boolean; status: string };
+  plans: Array<{ id: string; pricesUsdCents: { monthly: number; yearly: number }; monthlyCredits: number; yearlySavingsUsdCents: number | null; yearlyMonthlyEquivalentUsdCents: number; prototypeOnly: boolean }>;
+}
 export interface CoreConnection { connected: boolean; connectedAt: string | null; }
 export interface GeneratedFile { path: string; content: string; }
 export interface GenerationResult { project: Project & { files?: GeneratedFile[] }; generatedFiles: GeneratedFile[]; modelsUsed: string[]; usage?: { charged_usd?: number; currency?: string; input_tokens?: number; output_tokens?: number }; }
 
 export const builderApi = {
+  billing(): Promise<BuilderBilling> {
+    return request<{ success: true; billing: BuilderBilling }>('/api/billing').then((result) => result.billing);
+  },
   listModels(): Promise<BuilderModel[]> {
     return request<{ success: true; models: BuilderModel[] }>('/api/models').then((result) => result.models);
   },

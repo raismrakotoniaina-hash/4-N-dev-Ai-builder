@@ -40,6 +40,18 @@ test('billing endpoint is authenticated and returns server-owned prices and Free
   assert.equal(payload.billing.creditsBalance, 0);
   assert.equal(payload.billing.paymentsEnabled, false);
   assert.equal(payload.billing.renewalEnabled, false);
-  assert.equal(payload.billing.plans.find((plan) => plan.id === 'starter').pricesUsdCents.yearly, 10800);
+  assert.deepEqual(payload.billing.creditsPolicy, {
+    monthlyGrantEnabled: false,
+    monthlyExpiryEnabled: false,
+    rolloverEnabled: false,
+    status: 'not_enabled'
+  });
+  const starter = payload.billing.plans.find((plan) => plan.id === 'starter');
+  assert.equal(starter.pricesUsdCents.monthly, 1200);
+  assert.equal(starter.pricesUsdCents.yearly, 10800);
+  assert.equal(starter.yearlySavingsUsdCents, 3600);
+  assert.equal(starter.yearlyMonthlyEquivalentUsdCents, 900);
+  assert.equal(payload.billing.plans.find((plan) => plan.id === 'pro').yearlySavingsUsdCents, 7200);
+  assert.equal(payload.billing.plans.find((plan) => plan.id === 'business').yearlySavingsUsdCents, 12000);
   assert.equal(payload.billing.plans.find((plan) => plan.id === 'business').monthlyCredits, 400);
 });

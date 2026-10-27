@@ -1,4 +1,4 @@
-import { BUILDER_PLANS } from './builder-plans.js';
+import { BUILDER_PLANS, getBuilderYearlySavingsUsdCents } from './builder-plans.js';
 
 const COOKIE = 'builder_session';
 
@@ -32,6 +32,8 @@ export function createBillingApi({ store }) {
       id: plan.id,
       pricesUsdCents: plan.pricesUsdCents,
       monthlyCredits: plan.monthlyCredits,
+      yearlySavingsUsdCents: getBuilderYearlySavingsUsdCents(plan.id),
+      yearlyMonthlyEquivalentUsdCents: plan.id === 'free' ? 0 : Math.round(plan.pricesUsdCents.yearly / 12),
       prototypeOnly: plan.prototypeOnly
     }));
     return send(res, 200, {
@@ -40,7 +42,16 @@ export function createBillingApi({ store }) {
         ...state,
         plans,
         paymentsEnabled: false,
-        renewalEnabled: false
+        renewalEnabled: false,
+        // Monthly quota issuance/expiry is intentionally reported as disabled
+        // until the transactional credit-lot lifecycle and scheduled renewal
+        // worker are implemented and tested.
+        creditsPolicy: {
+          monthlyGrantEnabled: false,
+          monthlyExpiryEnabled: false,
+          rolloverEnabled: false,
+          status: 'not_enabled'
+        }
       }
     });
   };

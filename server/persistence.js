@@ -2,6 +2,7 @@ import { randomBytes, randomUUID, scrypt as scryptCallback, createCipheriv, crea
 import { promisify } from 'node:util';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
+import { getBuilderPriceUsdCents } from './builder-plans.js';
 
 const scrypt = promisify(scryptCallback);
 const EMPTY = { users: [], sessions: [], projects: [], subscriptions: [], creditLedger: [] };
@@ -257,8 +258,8 @@ export function createPersistence({ filePath = process.env.BUILDER_DATA_FILE || 
   }
 
   async function recordSubscription({ userId, plan, billingInterval, status, periodStart, periodEnd, cancelAtPeriodEnd = false, provider = null, providerCustomerId = null, providerSubscriptionId = null }) {
-    const prices = { free: { monthly: 0, yearly: 0 }, starter: { monthly: 1200, yearly: 10800 }, pro: { monthly: 2500, yearly: 22800 }, business: { monthly: 5000, yearly: 48000 } };
-    if (!prices[plan] || !Object.hasOwn(prices[plan], billingInterval)) throw new TypeError('Invalid Builder plan or billing interval.');
+    const priceUsdCents = getBuilderPriceUsdCents(plan, billingInterval);
+    if (priceUsdCents === null) throw new TypeError('Invalid Builder plan or billing interval.');
     if (!['incomplete', 'active', 'past_due', 'canceled', 'expired'].includes(status)) throw new TypeError('Invalid subscription status.');
     const start = new Date(periodStart);
     const end = new Date(periodEnd);
@@ -266,7 +267,7 @@ export function createPersistence({ filePath = process.env.BUILDER_DATA_FILE || 
     return transact((state) => {
       if (!state.users.some((user) => user.id === userId)) throw new Error('Account not found.');
       const subscription = {
-        id: randomUUID(), userId, plan, billingInterval, status, priceUsdCents: prices[plan][billingInterval],
+        id: randomUUID(), userId, plan, billingInterval, status, priceUsdCents,
         currency: 'USD', periodStart: start.toISOString(), periodEnd: end.toISOString(),
         cancelAtPeriodEnd: Boolean(cancelAtPeriodEnd), canceledAt: status === 'canceled' ? new Date().toISOString() : null,
         provider, providerCustomerId, providerSubscriptionId, createdAt: new Date().toISOString()

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { AppLayout } from './components/layout/AppLayout';
 import { Modal } from './components/ui/Modal';
 import { navigationItems } from './data/navigation';
-import { builderApi, type BuilderUser } from './lib/builderApi';
+import { builderApi, type BuilderBilling, type BuilderUser } from './lib/builderApi';
 import { useLanguage } from './lib/i18n';
 import type { AppView, Project, ProjectFile } from './types/app';
 
@@ -15,6 +15,8 @@ function App() {
   const [collapsed, setCollapsed] = useState(false);
   const [modal, setModal] = useState(false);
   const [user, setUser] = useState<BuilderUser | null>(null);
+  const [billing, setBilling] = useState<BuilderBilling | null>(null);
+  const [billingInterval, setBillingInterval] = useState<'monthly' | 'yearly'>('yearly');
   const [projects, setProjects] = useState<Project[]>([]);
   const [selected, setSelected] = useState<ProjectWithFiles | null>(null);
   const [prompt, setPrompt] = useState('');
@@ -51,6 +53,17 @@ function App() {
     });
     return () => { active = false; };
   }, []);
+
+  useEffect(() => {
+    if (!user || activeView !== 'settings') return;
+    let active = true;
+    builderApi.billing().then((state) => {
+      if (active) setBilling(state);
+    }).catch((error) => {
+      if (active) setMessage(error instanceof Error ? error.message : 'Tsy afaka naka ny mombamomba ny billing.');
+    });
+    return () => { active = false; };
+  }, [user, activeView]);
 
   async function submitAuth() {
     setBusy(true);
@@ -159,11 +172,38 @@ function App() {
 
               {activeView === 'help' && <section className="workspace-card"><h2>{currentPage.label === 'Help Center' ? currentPage.label : 'Help Center'}</h2><p>Fanampiana amin’ny kaonty, famoronana tetikasa, fitahirizana rakitra ary famahana hadisoana.</p><p>Raha tsy mandeha ny génération, jereo ny hafatra aseho eo ambony ary aza averina imbetsaka ny fangatahana raha misy mety handany crédit.</p></section>}
 
-              {activeView === 'settings' && <section className="workspace-card">
-                <h2>{t('4N DEV Core')}</h2>
-                <p>Ny modely sy ny Core API key dia tantanan’ny developer ao amin’ny serveur. Tsy mila mampiditra <code>4ndev_sk</code> ny mpampiasa, ary tsy aseho ao amin’ny navigateur ny lakile.</p>
-                <p>Ny génération dia miasa rehefa voalamina ao amin’ny environment an’ny Builder ny <code>BUILDER_CORE_API_KEY</code>. Raha tsy mbola voalamina izany dia hampiseho hadisoana mazava ny backend.</p>
-              </section>}
+              {activeView === 'settings' && <>
+                <section className="workspace-card">
+                  <h2>{t('Abonnement sy crédit')}</h2>
+                  <p>Misafidiana fandoavana isam-bolana na fandoavana 12 volana mialoha. Ny vidiny isan-taona dia misy fihenam-bidy raha oharina amin’ny fandoavana isam-bolana in-12.</p>
+                  <div className="project-actions">
+                    <button className={billingInterval === 'monthly' ? '' : 'project-row'} onClick={() => setBillingInterval('monthly')}>Volana 1</button>
+                    <button className={billingInterval === 'yearly' ? '' : 'project-row'} onClick={() => setBillingInterval('yearly')}>Taona 1 — misy fihenam-bidy</button>
+                  </div>
+                  {billing ? <>
+                    <div className="workspace-grid">
+                      {billing.plans.map((plan) => {
+                        const price = plan.pricesUsdCents[billingInterval];
+                        return <article className="workspace-card" key={plan.id}>
+                          <h3>{plan.id.toUpperCase()}</h3>
+                          <p><strong>${(price / 100).toFixed(2)} USD</strong> {billingInterval === 'monthly' ? '/ volana' : '/ 12 volana'}</p>
+                          {billingInterval === 'yearly' && plan.yearlySavingsUsdCents !== null && <p>Mitahiry ${(plan.yearlySavingsUsdCents / 100).toFixed(2)} USD isan-taona · mitovy amin’ny ${(plan.yearlyMonthlyEquivalentUsdCents / 100).toFixed(2)} USD/volana</p>}
+                          <p>Crédit omena isam-bolana: {plan.monthlyCredits}</p>
+                          {plan.prototypeOnly && <p>Prototype Free ihany</p>}
+                        </article>;
+                      })}
+                    </div>
+                    <p>Fandoavam-bola sy renewal automatique: mbola tsy mandeha. Tsy mbola afaka mividy abonnement amin’ity efijery ity.</p>
+                    <p>Satan’ny crédit: {billing.creditsPolicy.status}. Tsy mbola ampiharina ny fanomezana sy fahataperan’ny crédit isam-bolana.</p>
+                    <p>Balance ankehitriny: {billing.creditsBalance} crédit.</p>
+                  </> : <p>Maka ny vidiny sy ny satan’ny abonnement…</p>}
+                </section>
+                <section className="workspace-card">
+                  <h2>{t('4N DEV Core')}</h2>
+                  <p>Ny modely sy ny Core API key dia tantanan’ny developer ao amin’ny serveur. Tsy mila mampiditra <code>4ndev_sk</code> ny mpampiasa, ary tsy aseho ao amin’ny navigateur ny lakile.</p>
+                  <p>Ny génération dia miasa rehefa voalamina ao amin’ny environment an’ny Builder ny <code>BUILDER_CORE_API_KEY</code>. Raha tsy mbola voalamina izany dia hampiseho hadisoana mazava ny backend.</p>
+                </section>
+              </>}
 
               {!['dashboard', 'builder', 'projects', 'files', 'settings', 'help'].includes(activeView) && <section className="workspace-card"><h2>{currentPage.label}</h2><p>Hovelarina aorian’ny fametrahana ny pipeline build voaaro sy preview mitokana.</p></section>}
             </>
