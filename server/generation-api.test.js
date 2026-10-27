@@ -166,3 +166,38 @@ test('reports an unconfirmed credit refund instead of silently swallowing persis
   assert.equal(payload.jobId.length > 0, true);
   assert.equal((await store.getBillingState(user.id)).creditsBalance, 40);
 });
+
+
+test('reports real generation stages through an authenticated status endpoint', async (t) => {
+  let releaseFirstCall;
+  let signalFirstCall;
+  const firstCallStarted = new Promise((resolve) => { signalFirstCall = resolve; });
+  const waitForRelease = new Promise((resolve) => { releaseFirstCall = resolve; });
+  let first = true;
+  const { base, cookie, project } = await setup(t, async (url, options) => {
+    if (first) {
+      first = false;
+      signalFirstCall();
+      await waitForRelease;
+    }
+    return response(url.endsWith('/v1/chat') ? 'chat' : 'coding', JSON.parse(options.body).model);
+  });
+  const generation = fetch(base + '/api/projects/' + project.id + '/generate', {
+    method: 'POST',
+    headers: { Cookie: cookie, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt: 'Create a cafe website' })
+  });
+  await firstCallStarted;
+  const during = await fetch(base + '/api/projects/' + project.id + '/generation-status', { headers: { Cookie: cookie } });
+  assert.equal(during.status, 200);
+  const current = await during.json();
+  assert.equal(current.progress.state, 'running');
+  assert.ok(current.progress.steps.some((step) => /plan/i.test(step.message)));
+  releaseFirstCall();
+  const finished = await generation;
+  assert.equal(finished.status, 200);
+  const after = await fetch(base + '/api/projects/' + project.id + '/generation-status', { headers: { Cookie: cookie } });
+  const finalState = await after.json();
+  assert.equal(finalState.progress.state, 'completed');
+  assert.ok(finalState.progress.steps.some((step) => /VITA/.test(step.message)));
+});

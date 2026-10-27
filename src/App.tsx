@@ -104,31 +104,25 @@ function App() {
     if (!prompt.trim() || !user || busy) return;
     setBusy(true);
     const description = prompt.trim();
-    const stages = [
-      'Voaray ny prompt; mamorona tetikasa sy manomana ny fangatahana.',
-      'Mandefa ny famaritana any amin’ny 4N DEV Core.',
-      'Mandamina ny plan: pejy, endrika, singa ary fepetra ilaina.',
-      'Mandinika sy manatsara ny plan alohan’ny fanoratana kaody.',
-      'Manoratra ny rakitra React, TypeScript, HTML ary CSS.',
-      'Mandinika indray ny kaody sy manitsy lesoka hita.',
-      'Manamarina ny rakitra ary manangana build mitokana.',
-      'Mitahiry ny rakitra rehefa mahomby ny build.'
-    ];
-    setGenerationLog([stages[0]]);
+    setGenerationLog(['Miomana handefa ny prompt amin’ny serveur…']);
     setActiveView('builder');
     setMessage('Generation AI tena izy no mandeha; 10 crédit Builder no sarany raha vita soa aman-tsara.');
-    let stageIndex = 1;
-    const progressTimer = window.setInterval(() => {
-      if (stageIndex < stages.length - 1) {
-        setGenerationLog((previous) => [...previous, stages[stageIndex]]);
-        stageIndex += 1;
-      }
-    }, 4500);
+    let progressPoller: number | undefined;
     try {
       const project = await builderApi.createProject(description.slice(0, 120), description.slice(0, 2000));
+      progressPoller = window.setInterval(async () => {
+        try {
+          const status = await builderApi.generationStatus(project.id);
+          if (status.steps.length) setGenerationLog(status.steps.map((step) => step.message));
+        } catch {
+          // Keep the current progress visible if a single status poll fails.
+        }
+      }, 1000);
       const generated = await builderApi.generateProject(project.id, description);
-      window.clearInterval(progressTimer);
-      setGenerationLog((previous) => [...previous, stages[stages.length - 1], 'VITA: voatahiry ny rakitra ' + generated.generatedFiles.length + ' ary nahomby ny build.']);
+      if (progressPoller !== undefined) window.clearInterval(progressPoller);
+      const finalStatus = await builderApi.generationStatus(project.id).catch(() => null);
+      if (finalStatus?.steps.length) setGenerationLog(finalStatus.steps.map((step) => step.message));
+      else setGenerationLog((previous) => [...previous, 'VITA: voatahiry ny rakitra ary nahomby ny build.']);
       await refreshProjects();
       setSelected({ ...(generated.project as ProjectWithFiles), files: generated.generatedFiles as ProjectFile[] });
       setPrompt('');
@@ -136,9 +130,9 @@ function App() {
       setActiveView('files');
       setMessage('Nahomby ny generation AI. Rakitra: ' + generated.generatedFiles.length + '. Crédit nampiasaina: ' + (generated.creditsCharged ?? 10) + '.');
     } catch (error) {
-      window.clearInterval(progressTimer);
+      if (progressPoller !== undefined) window.clearInterval(progressPoller);
       const detail = error instanceof Error ? error.message : 'Tsy nahomby ny génération AI.';
-      setGenerationLog((previous) => [...previous, 'TSY TAFITA: ' + detail, 'Tsy tokony hoheverina ho vita ny génération raha tsy tafaverina ny valiny sy ny fanamarinana build.']);
+      setGenerationLog((previous) => [...previous, 'TSY TAFITA: ' + detail]);
       setMessage(detail);
       await refreshProjects().catch(() => {});
     } finally {
@@ -187,7 +181,7 @@ function App() {
 
               {generationLog.length > 0 && <section className="workspace-card generation-progress" aria-live="polite">
                 <h2>{busy ? 'Mandroso ny generation AI…' : 'Tatitra generation AI'}</h2>
-                <p>Dingana aseho eto no fizotry ny pipeline; mety hitohy ao amin’ny serveur ny dingana iray mandra-pamalian’ny Core na ny build worker.</p>
+                <p>Ireo dingana ireo dia tatitra avy amin’ny serveur, havaozina isaky ny mandroso ny Core na ny build worker.</p>
                 <ol className="generation-log">{generationLog.map((line, index) => <li key={index} className={line.startsWith('VITA:') ? 'generation-log__done' : line.startsWith('TSY TAFITA:') ? 'generation-log__error' : ''}>{line}</li>)}</ol>
                 {busy && <div className="generation-progress__bar" role="progressbar" aria-label="Generation AI mandeha"><span /></div>}
                 <div ref={logEndRef} />
