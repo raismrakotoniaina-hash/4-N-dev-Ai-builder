@@ -111,11 +111,11 @@ export function createGenerationApi({store,fetchImpl=globalThis.fetch,coreApiUrl
     'Generated files:',JSON.stringify(JSON.parse(result.data?.output?.trim()||'{}'))
    ].join('\n')});
    setProgress(user.id,m[1],'Manamarina ny rafitry ny rakitra sy ny fiarovana azy.');
-   let files;try{files=parseFiles(review.data?.output);}catch(e){if(!await refundFailedGeneration())return refundPendingResponse();return send(res,502,{success:false,error:e.message,usage:result.usage});}
+   let files;try{files=parseFiles(review.data?.output);}catch(e){setProgress(user.id,m[1],'TSY TAFITA: '+e.message,'failed');if(!await refundFailedGeneration())return refundPendingResponse();return send(res,502,{success:false,error:e.message,usage:result.usage});}
    setProgress(user.id,m[1],'Manangana sy mitsapa ny application ao amin’ny build worker mitokana.');
-   try{await buildValidator(files);}catch(e){if(!await refundFailedGeneration())return refundPendingResponse();return send(res,e.statusCode||422,{success:false,error:'Generated app failed isolated build validation: '+e.message,usage:result.usage});}
+   try{await buildValidator(files);}catch(e){setProgress(user.id,m[1],'TSY TAFITA: tsy nahomby ny build: '+e.message,'failed');if(!await refundFailedGeneration())return refundPendingResponse();return send(res,e.statusCode||422,{success:false,error:'Generated app failed isolated build validation: '+e.message,usage:result.usage});}
    setProgress(user.id,m[1],'Nahomby ny build; mitahiry ny rakitra ao amin’ny tetikasa.');
-   const savedFiles=await store.putFiles(user.id,m[1],files);if(!savedFiles){if(!await refundFailedGeneration())return refundPendingResponse();return send(res,404,{success:false,error:'Project not found while saving files.'});}
+   const savedFiles=await store.putFiles(user.id,m[1],files);if(!savedFiles){setProgress(user.id,m[1],'TSY TAFITA: tsy voatahiry ny rakitra.','failed');if(!await refundFailedGeneration())return refundPendingResponse();return send(res,404,{success:false,error:'Project not found while saving files.'});}
    generationCommitted=true;
    setProgress(user.id,m[1],'VITA: voatahiry ny rakitra ary nahomby ny build.','completed');
    return send(res,200,{success:true,project:await store.getProject(user.id,m[1]),generatedFiles:files,modelsUsed:Object.values(PIPELINE),creditsCharged:GENERATION_CREDIT_COST,usage:{charged_usd:[plan.usage,planReview.usage,result.usage,review.usage].reduce((sum,item)=>sum+Number(item?.charged_usd||0),0),currency:'USD',calls:{planner:plan.usage,plannerReview:planReview.usage,coder:result.usage,codeReviewer:review.usage}}});
