@@ -70,19 +70,19 @@ export default function App() {
   const items = sections[template] || sections.landing;
   return (
     <main className="page">
-      <nav className="nav"><span className="brand">{projectName}</span><span className="badge">Prototype Free</span></nav>
+      <nav className="nav"><span className="brand">{projectName}</span><span className="badge">4N DEV</span></nav>
       <section className="hero">
         <p className="eyebrow">4N DEV AI BUILDER · {template.toUpperCase()}</p>
         <h1>{projectName}</h1>
-        <p className="lead">{description || 'Prototype voalohany azo ovaina sy hatsaraina.'}</p>
+        <p className="lead">{description || 'Application azo ovaina sy hatsaraina.'}</p>
         <a className="button" href="#contenu">Hijery ny votoaty</a>
       </section>
       <section id="contenu" className="content">
-        <h2>Fototra azo hatsaraina</h2>
+        <h2>Votoatin’ny application</h2>
         <div className="tabs">{items.map((item, index) => <button key={item.title} className={active === index ? 'tab active' : 'tab'} onClick={() => setActive(index)}>{item.title}</button>)}</div>
         <article className="card"><span className="number">0{active + 1}</span><h3>{items[active].title}</h3><p>{items[active].text}</p></article>
       </section>
-      <footer>Prototype noforonina tamin’ny algorithm sy template — tsy nampiasa 4N DEV Core.</footer>
+      <footer>Noforonina tamin’ny 4N DEV AI Builder.</footer>
     </main>
   );
 }
@@ -114,7 +114,7 @@ footer { padding:1.5rem; text-align:center; color:#6a7487; font-size:.85rem; bor
 @media (max-width:600px) { .nav { padding:1rem; } .tabs { display:grid; grid-template-columns:1fr; } .tab { text-align:left; } }
 `;
   const packageJson = JSON.stringify({
-    name: '4ndev-free-prototype',
+    name: '4ndev-generated-app',
     private: true,
     version: '1.0.0',
     type: 'module',
@@ -132,7 +132,7 @@ footer { padding:1.5rem; text-align:center; color:#6a7487; font-size:.85rem; bor
   }, null, 2);
   return [
     { path: 'package.json', content: packageJson },
-    { path: 'index.html', content: '<!doctype html><html lang="mg"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><meta name="description" content="4N DEV Free prototype"/><title>4N DEV Free Prototype</title></head><body><div id="root"></div><script type="module" src="/src/main.tsx"></script></body></html>' },
+    { path: 'index.html', content: '<!doctype html><html lang="mg"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><meta name="description" content="4N DEV AI Builder"/><title>4N DEV AI Builder</title></head><body><div id="root"></div><script type="module" src="/src/main.tsx"></script></body></html>' },
     { path: 'tsconfig.json', content: tsconfig },
     { path: 'vite.config.ts', content: "import { defineConfig } from 'vite';\nimport react from '@vitejs/plugin-react';\nexport default defineConfig({ plugins: [react()] });\n" },
     { path: 'src/main.tsx', content: "import { StrictMode } from 'react';\nimport { createRoot } from 'react-dom/client';\nimport App from './App';\nimport './index.css';\n\ncreateRoot(document.getElementById('root')!).render(<StrictMode><App /></StrictMode>);\n" },
