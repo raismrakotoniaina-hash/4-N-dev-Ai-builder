@@ -124,10 +124,12 @@ function App() {
       if (finalStatus?.steps.length) setGenerationLog(finalStatus.steps.map((step) => step.message));
       else setGenerationLog((previous) => [...previous, 'VITA: voatahiry ny rakitra ary nahomby ny build.']);
       await refreshProjects();
-      const storedFiles = (generated.project as ProjectWithFiles).files || [];\n      const previewHtml = storedFiles.find((file) => file.path === '__4ndev_preview.html')?.content;\n      setSelected({ ...(generated.project as ProjectWithFiles), files: generated.generatedFiles as ProjectFile[], previewHtml });
+      const storedFiles = (generated.project as ProjectWithFiles).files || [];
+      const previewHtml = storedFiles.find((file) => file.path === '__4ndev_preview.html')?.content;
+      setSelected({ ...(generated.project as ProjectWithFiles), files: generated.generatedFiles as ProjectFile[], previewHtml });
       setPrompt('');
       setModal(false);
-      setActiveView('files');
+      setActiveView(generated.previewAvailable ? 'preview' : 'files');
       setMessage('Vita ny application. Rakitra: ' + generated.generatedFiles.length + (generated.mode === 'free-template' ? '.' : '. Crédit nampiasaina: ' + (generated.creditsCharged ?? 10) + '.'));
     } catch (error) {
       if (progressPoller !== undefined) window.clearInterval(progressPoller);
