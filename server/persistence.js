@@ -256,6 +256,26 @@ export function createPersistence({ filePath = process.env.BUILDER_DATA_FILE || 
     });
   }
 
+  async function recordSubscription({ userId, plan, billingInterval, status, periodStart, periodEnd, cancelAtPeriodEnd = false, provider = null, providerCustomerId = null, providerSubscriptionId = null }) {
+    const prices = { free: { monthly: 0, yearly: 0 }, starter: { monthly: 1200, yearly: 10800 }, pro: { monthly: 2500, yearly: 22800 }, business: { monthly: 5000, yearly: 48000 } };
+    if (!prices[plan] || !Object.hasOwn(prices[plan], billingInterval)) throw new TypeError('Invalid Builder plan or billing interval.');
+    if (!['incomplete', 'active', 'past_due', 'canceled', 'expired'].includes(status)) throw new TypeError('Invalid subscription status.');
+    const start = new Date(periodStart);
+    const end = new Date(periodEnd);
+    if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || end <= start) throw new TypeError('Invalid subscription period.');
+    return transact((state) => {
+      if (!state.users.some((user) => user.id === userId)) throw new Error('Account not found.');
+      const subscription = {
+        id: randomUUID(), userId, plan, billingInterval, status, priceUsdCents: prices[plan][billingInterval],
+        currency: 'USD', periodStart: start.toISOString(), periodEnd: end.toISOString(),
+        cancelAtPeriodEnd: Boolean(cancelAtPeriodEnd), canceledAt: status === 'canceled' ? new Date().toISOString() : null,
+        provider, providerCustomerId, providerSubscriptionId, createdAt: new Date().toISOString()
+      };
+      state.subscriptions.push(subscription);
+      return structuredClone(subscription);
+    });
+  }
+
   async function getBillingState(userId) {
     return view((state) => {
       const now = Date.now();
@@ -326,5 +346,5 @@ export function createPersistence({ filePath = process.env.BUILDER_DATA_FILE || 
     return changeCredits({ ...options, amount: -options.amount, eventType: 'charge' });
   }
 
-  return { createUser, verifyUser, createSession, getUserForSession, deleteSession, connectCoreKey, getCoreKey, disconnectCoreKey, coreConnectionStatus, listProjects, createProject, getProject, updateProject, deleteProject, putFile, putFiles, deleteFile, getBillingState, grantCredits, consumeCredits };
+  return { createUser, verifyUser, createSession, getUserForSession, deleteSession, connectCoreKey, getCoreKey, disconnectCoreKey, coreConnectionStatus, listProjects, createProject, getProject, updateProject, deleteProject, putFile, putFiles, deleteFile, getBillingState, recordSubscription, grantCredits, consumeCredits };
 }
