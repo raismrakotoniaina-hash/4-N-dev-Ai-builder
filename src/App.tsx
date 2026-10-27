@@ -130,7 +130,7 @@ function App() {
       window.clearInterval(progressTimer);
       setGenerationLog((previous) => [...previous, stages[stages.length - 1], 'VITA: voatahiry ny rakitra ' + generated.generatedFiles.length + ' ary nahomby ny build.']);
       await refreshProjects();
-      setSelected({ ...(generated.project as ProjectWithFiles), files: generated.generatedFiles });
+      setSelected({ ...(generated.project as ProjectWithFiles), files: generated.generatedFiles as ProjectFile[] });
       setPrompt('');
       setModal(false);
       setActiveView('files');
