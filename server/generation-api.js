@@ -30,6 +30,11 @@ export function createGenerationApi({store,fetchImpl=globalThis.fetch,coreApiUrl
   const m=url.pathname.match(/^\/api\/projects\/([0-9a-f-]{36})\/generate$/i);if(!m||req.method!=='POST')return false;
   const user=await store.getUserForSession(cookieValue(req.headers.cookie));if(!user)return send(res,401,{success:false,error:'Authentication required.'});
   let creditJobId=null;let creditsCharged=false;let generationCommitted=false;
+  async function refundFailedGeneration(){
+   if(!creditsCharged||generationCommitted)return;
+   try{await store.grantCredits({userId:user.id,amount:GENERATION_CREDIT_COST,idempotencyKey:'generation:'+creditJobId+':refund',reason:'Refund for unsuccessful AI app generation',projectId:m[1],jobId:creditJobId});}catch{}
+   creditsCharged=false;
+  }
   try{
    const chunks=[];let size=0;for await(const chunk of req){size+=chunk.length;if(size>16000)return send(res,413,{success:false,error:'Generation request is too large.'});chunks.push(chunk);}
    let body;try{body=chunks.length?JSON.parse(Buffer.concat(chunks).toString('utf8')):{};}catch{return send(res,400,{success:false,error:'Request body must be valid JSON.'});}
@@ -73,16 +78,11 @@ export function createGenerationApi({store,fetchImpl=globalThis.fetch,coreApiUrl
     'Implementation plan:',planReview.data?.message?.content||plan.data?.message?.content||'',
     'Generated files:',JSON.stringify(JSON.parse(result.data?.output?.trim()||'{}'))
    ].join('\n')});
-   let files;try{files=parseFiles(review.data?.output);}catch(e){return send(res,502,{success:false,error:e.message,usage:result.usage});}
-   try{await buildValidator(files);}catch(e){return send(res,e.statusCode||422,{success:false,error:'Generated app failed isolated build validation: '+e.message,usage:result.usage});}
-   const savedFiles=await store.putFiles(user.id,m[1],files);if(!savedFiles)return send(res,404,{success:false,error:'Project not found while saving files.'});
+   let files;try{files=parseFiles(review.data?.output);}catch(e){await refundFailedGeneration();return send(res,502,{success:false,error:e.message,usage:result.usage});}
+   try{await buildValidator(files);}catch(e){await refundFailedGeneration();return send(res,e.statusCode||422,{success:false,error:'Generated app failed isolated build validation: '+e.message,usage:result.usage});}
+   const savedFiles=await store.putFiles(user.id,m[1],files);if(!savedFiles){await refundFailedGeneration();return send(res,404,{success:false,error:'Project not found while saving files.'});}
    generationCommitted=true;
    return send(res,200,{success:true,project:await store.getProject(user.id,m[1]),generatedFiles:files,modelsUsed:Object.values(PIPELINE),creditsCharged:GENERATION_CREDIT_COST,usage:{charged_usd:[plan.usage,planReview.usage,result.usage,review.usage].reduce((sum,item)=>sum+Number(item?.charged_usd||0),0),currency:'USD',calls:{planner:plan.usage,plannerReview:planReview.usage,coder:result.usage,codeReviewer:review.usage}}});
-  }catch(e){return send(res,e.statusCode||502,{success:false,error:e.statusCode?e.message:'Generation failed unexpectedly.'});}
-  finally{
-   if(creditsCharged&&!generationCommitted){
-    await store.grantCredits({userId:user.id,amount:GENERATION_CREDIT_COST,idempotencyKey:'generation:'+creditJobId+':refund',reason:'Refund for unsuccessful AI app generation',projectId:m[1],jobId:creditJobId}).catch(()=>{});
-   }
-  }
+  }catch(e){await refundFailedGeneration();return send(res,e.statusCode||502,{success:false,error:e.statusCode?e.message:'Generation failed unexpectedly.'});}
  };
 }
