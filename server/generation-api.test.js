@@ -17,7 +17,7 @@ function response(service, model) {
   else data = { output: JSON.stringify({ files: goodFiles }) };
   return new Response(JSON.stringify({ success: true, service, model, data, usage: { charged_usd: 0.01, currency: 'USD' } }), { status: 200 });
 }
-async function setup(t, fetchImpl, buildValidator = async () => ({ success: true }), coreApiKey, initialCredits = 50) {
+async function setup(t, fetchImpl, buildValidator = async () => ({ success: true }), coreApiKey, initialCredits = 50, activeSubscription = true) {
   const dir = await mkdtemp(join(tmpdir(), '4n-generation-'));
   const store = createPersistence({ filePath: join(dir, 'state.json'), encryptionKey: 'test-encryption-key-that-is-at-least-32-bytes' });
   const server = createBuilderServer({ store, fetchImpl, buildValidator, coreApiKey });
@@ -31,6 +31,10 @@ async function setup(t, fetchImpl, buildValidator = async () => ({ success: true
   const cookie = auth.headers.get('set-cookie').split(';')[0];
   const user = await store.getUserForSession(cookie.split('=')[1]);
   await store.connectCoreKey(user.id, API_KEY);
+  if (activeSubscription) {
+    const now = Date.now();
+    await store.recordSubscription({ userId: user.id, plan: 'starter', billingInterval: 'monthly', status: 'active', periodStart: new Date(now - 60_000).toISOString(), periodEnd: new Date(now + 30 * 24 * 60 * 60 * 1000).toISOString() });
+  }
   if (initialCredits > 0) {
     await store.grantCredits({ userId: user.id, amount: initialCredits, idempotencyKey: 'test-grant:' + user.id, reason: 'Generation API test credits' });
   }
@@ -200,4 +204,25 @@ test('reports real generation stages through an authenticated status endpoint', 
   const finalState = await after.json();
   assert.equal(finalState.progress.state, 'completed');
   assert.ok(finalState.progress.steps.some((step) => /VITA/.test(step.message)));
+});
+
+
+test('free accounts use the local app generator without Core calls or credit charges', async (t) => {
+  let coreCalls = 0;
+  const { base, cookie, project, store, user } = await setup(t, async () => {
+    coreCalls++;
+    return response('coding', 'unexpected');
+  }, undefined, undefined, 50, false);
+  const r = await fetch(base + '/api/projects/' + project.id + '/generate', {
+    method: 'POST', headers: { Cookie: cookie, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt: 'Create a responsive business landing page' })
+  });
+  const result = await r.json();
+  assert.equal(r.status, 200);
+  assert.equal(result.mode, 'free-template');
+  assert.equal(result.generationMode, 'free');
+  assert.equal(result.coreCalls, 0);
+  assert.equal(coreCalls, 0);
+  assert.equal((await store.getBillingState(user.id)).creditsBalance, 50);
+  assert.ok(result.generatedFiles.some(file => file.path === 'src/App.tsx'));
 });
