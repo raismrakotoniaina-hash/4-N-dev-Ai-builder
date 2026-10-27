@@ -20,6 +20,7 @@ function App() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [selected, setSelected] = useState<ProjectWithFiles | null>(null);
   const [prompt, setPrompt] = useState('');
+  const [appTarget, setAppTarget] = useState<'web' | 'mobile'>('web');
   const [message, setMessage] = useState('Midira na mamoròna kaonty hanombohana.');
   const [busy, setBusy] = useState(false);
   const [generationLog, setGenerationLog] = useState<string[]>([]);
@@ -104,6 +105,7 @@ function App() {
     if (!prompt.trim() || !user || busy) return;
     setBusy(true);
     const description = prompt.trim();
+    const generationPrompt = appTarget === 'mobile' ? description + '\nTarget platform: mobile app (Expo React Native). Include the app-specific mobile source under mobile/ and keep the root web preview buildable.' : description;
     setGenerationLog(['Manomana ny application…']);
     setActiveView('builder');
     setMessage('Mamorona ny application…');
@@ -118,7 +120,7 @@ function App() {
           // Keep the current progress visible if a single status poll fails.
         }
       }, 1000);
-      const generated = await builderApi.generateProject(project.id, description);
+      const generated = await builderApi.generateProject(project.id, generationPrompt);
       if (progressPoller !== undefined) window.clearInterval(progressPoller);
       const finalStatus = await builderApi.generationStatus(project.id).catch(() => null);
       if (finalStatus?.steps.length) setGenerationLog(finalStatus.steps.map((step) => step.message));
@@ -192,7 +194,8 @@ function App() {
               {activeView === 'dashboard' && <section className="workspace-grid">
                 <div className="workspace-card workspace-hero">
                   <span className="eyebrow">{t('BUILD WITH AI')}</span><h2>{t('Farito ny tetikasanao.')}</h2>
-                  <p>Mamoròna application web mifanaraka amin’ny finday sy solosaina. Ny Builder dia hanomana ny rakitra ary hanamarina ny build.</p>
+                  <p>Mamoròna application web na mobile. Hamarinin’ny Builder ny build web; raha mobile no safidy dia tehirizina miaraka aminy ny loharano Expo.</p>
+                  <label style={{ display: 'grid', gap: '8px', marginBottom: '12px' }}><span>Karazana application</span><select value={appTarget} onChange={(event) => setAppTarget(event.target.value as 'web' | 'mobile')} style={{ padding: '12px', borderRadius: '10px', border: '1px solid #dbe2ee', background: '#fff' }}><option value="web">Web application</option><option value="mobile">Application mobile (Expo / React Native)</option></select></label>
                   <textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder={t('Ohatra: Mamoròna boutique misy catalogue, panier ary espace admin…')} />
                   <button disabled={busy || !prompt.trim()} onClick={createProject}>{busy ? 'Mamorona application…' : 'Mamorona application'}</button>
                 </div>
