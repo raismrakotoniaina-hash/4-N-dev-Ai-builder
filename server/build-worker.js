@@ -139,7 +139,7 @@ async function createSandboxPreview(root) {
   const dataUrl = (asset) => 'data:' + asset.type + ';base64,' + asset.data.toString('base64');
   for (const [url, asset] of assets) {
     if (asset.type.startsWith('image/') || asset.type.startsWith('font/')) continue;
-    const escaped = url.replace(/[.*+?^${}()|[\]\\]/g, '\\export async function buildGeneratedApp(files) {');
+    const escaped = url.replaceAll('.', '\\.');
     const replacement = dataUrl(asset);
     html = html.replace(new RegExp(escaped, 'g'), replacement);
   }
