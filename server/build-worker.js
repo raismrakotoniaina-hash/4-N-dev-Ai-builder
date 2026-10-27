@@ -1,6 +1,7 @@
 import { createServer } from 'node:net';
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
+import { readdir } from 'node:fs/promises';
 import { mkdtemp, mkdir, readFile, rm, writeFile, chmod } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 
@@ -113,6 +114,64 @@ function runDocker(args, timeout = BUILD_TIMEOUT_MS, cidFile) {
   });
 }
 
+async function createSandboxPreview(root) {
+  const dist = join(root, 'dist');
+  let html = await readFile(join(dist, 'index.html'), 'utf8');
+  const assetsDir = join(dist, 'assets');
+  const entries = await readdir(assetsDir, { withFileTypes: true }).catch(() => []);
+  const assets = new Map();
+  const mime = (name) => name.endsWith('.js') ? 'text/javascript'
+    : name.endsWith('.css') ? 'text/css'
+    : name.endsWith('.svg') ? 'image/svg+xml'
+    : name.endsWith('.png') ? 'image/png'
+    : name.endsWith('.jpg') || name.endsWith('.jpeg') ? 'image/jpeg'
+    : name.endsWith('.webp') ? 'image/webp'
+    : name.endsWith('.woff2') ? 'font/woff2'
+    : name.endsWith('.woff') ? 'font/woff'
+    : name.endsWith('.json') ? 'application/json' : 'application/octet-stream';
+  for (const entry of entries) {
+    if (!entry.isFile() || !/^[a-zA-Z0-9._-]+$/.test(entry.name)) continue;
+    const path = join(assetsDir, entry.name);
+    const data = await readFile(path);
+    if (data.length > 350_000) continue;
+    assets.set('/assets/' + entry.name, { data, type: mime(entry.name) });
+  }
+  const dataUrl = (asset) => 'data:' + asset.type + ';base64,' + asset.data.toString('base64');
+  for (const [url, asset] of assets) {
+    if (asset.type.startsWith('image/') || asset.type.startsWith('font/')) continue;
+    const escaped = url.replace(/[.*+?^${}()|[\]\\]/g, '\\export async function buildGeneratedApp(files) {');
+    const replacement = dataUrl(asset);
+    html = html.replace(new RegExp(escaped, 'g'), replacement);
+  }
+  html = html.replace(/<link\b[^>]*rel=["']modulepreload["'][^>]*>/gi, '');
+  html = await replaceAsync(html, /<script\b([^>]*?)\bsrc=["']([^"']+\.js)["']([^>]*)><\/script>/gi, async (_tag, before, src, after) => {
+    const asset = assets.get(src);
+    if (!asset || asset.type !== 'text/javascript') throw new Error('Cannot create isolated preview: JavaScript bundle is missing.');
+    const code = asset.data.toString('utf8');
+    if (/\bimport\s*(?:\(|[{*'"])/.test(code)) throw new Error('Cannot create isolated preview: split JavaScript bundles are not supported yet.');
+    return '<script type="module">' + code.replace(/<\/script/gi, '<\\/script') + '</script>';
+  });
+  html = await replaceAsync(html, /<link\b([^>]*?)\bhref=["']([^"']+\.css)["']([^>]*)>/gi, async (tag, before, href) => {
+    const asset = assets.get(href);
+    if (!asset || asset.type !== 'text/css') return '';
+    return '<style>' + asset.data.toString('utf8').replace(/<\/style/gi, '<\\/style') + '</style>';
+  });
+  const csp = "<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline' data:; style-src 'unsafe-inline' data:; img-src data: blob:; font-src data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'\">";
+  html = html.replace(/<head([^>]*)>/i, '<head$1>' + csp);
+  if (Buffer.byteLength(html, 'utf8') > 850_000) throw new Error('Isolated preview exceeds the size limit.');
+  return html;
+}
+
+async function replaceAsync(input, pattern, replacer) {
+  const matches = [...input.matchAll(pattern)];
+  let output = input;
+  for (const match of matches.reverse()) {
+    const replacement = await replacer(...match);
+    output = output.slice(0, match.index) + replacement + output.slice(match.index + match[0].length);
+  }
+  return output;
+}
+
 export async function buildGeneratedApp(files) {
   validateGeneratedFiles(files);
   let pkg;
@@ -146,7 +205,7 @@ export async function buildGeneratedApp(files) {
       '--volume', `${NODE_MODULES}:/workspace/node_modules:ro`,
       '--workdir', '/workspace', 'node:24-bookworm-slim', 'sh', '-lc', 'npm run build'
     ], BUILD_TIMEOUT_MS, cidFile);
-    return { success: true, log: output.slice(-MAX_LOG_BYTES) };
+    const previewHtml = await createSandboxPreview(root);\n    return { success: true, log: output.slice(-MAX_LOG_BYTES), previewHtml };
   } finally {
     await rm(root, { recursive: true, force: true });
     await rm(cidFile, { force: true });
