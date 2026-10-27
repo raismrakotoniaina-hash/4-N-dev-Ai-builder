@@ -248,7 +248,7 @@ function App() {
                 </section>
               </>}
 
-              {!['dashboard', 'builder', 'projects', 'files', 'settings', 'help'].includes(activeView) && <section className="workspace-card"><h2>{currentPage.label}</h2><p>Misafidiana tetikasa iray hanohizana.</p></section>}
+              {!['dashboard', 'builder', 'projects', 'files', 'preview', 'settings', 'help'].includes(activeView) && <section className="workspace-card"><h2>{currentPage.label}</h2><p>Misafidiana tetikasa iray hanohizana.</p></section>}
             </>
           )}
         </div>
