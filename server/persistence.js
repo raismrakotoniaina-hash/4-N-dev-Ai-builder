@@ -4,7 +4,7 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
 const scrypt = promisify(scryptCallback);
-const EMPTY = { users: [], sessions: [], projects: [] };
+const EMPTY = { users: [], sessions: [], projects: [], subscriptions: [], creditLedger: [] };
 
 function hash(value) {
   return createHash('sha256').update(value).digest('hex');
@@ -27,7 +27,9 @@ export function createPersistence({ filePath = process.env.BUILDER_DATA_FILE || 
       return {
         users: Array.isArray(parsed.users) ? parsed.users : [],
         sessions: Array.isArray(parsed.sessions) ? parsed.sessions : [],
-        projects: Array.isArray(parsed.projects) ? parsed.projects : []
+        projects: Array.isArray(parsed.projects) ? parsed.projects : [],
+        subscriptions: Array.isArray(parsed.subscriptions) ? parsed.subscriptions : [],
+        creditLedger: Array.isArray(parsed.creditLedger) ? parsed.creditLedger : []
       };
     } catch (error) {
       if (error.code === 'ENOENT') return structuredClone(EMPTY);
@@ -254,5 +256,37 @@ export function createPersistence({ filePath = process.env.BUILDER_DATA_FILE || 
     });
   }
 
-  return { createUser, verifyUser, createSession, getUserForSession, deleteSession, connectCoreKey, getCoreKey, disconnectCoreKey, coreConnectionStatus, listProjects, createProject, getProject, updateProject, deleteProject, putFile, putFiles, deleteFile };
+  async function getBillingState(userId) {
+    return view((state) => {
+      const now = Date.now();
+      const candidates = state.subscriptions
+        .filter((item) => item.userId === userId && ['active', 'past_due', 'canceled'].includes(item.status) && Date.parse(item.periodEnd) > now)
+        .sort((a, b) => {
+          const priority = { active: 0, past_due: 1, canceled: 2 };
+          return priority[a.status] - priority[b.status] || Date.parse(b.periodEnd) - Date.parse(a.periodEnd);
+        });
+      const subscription = candidates[0];
+      const ledger = state.creditLedger.filter((item) => item.userId === userId);
+      const latest = ledger.reduce((best, item) => !best || item.sequence > best.sequence ? item : best, null);
+      return {
+        subscription: subscription ? {
+          plan: subscription.plan,
+          billingInterval: subscription.billingInterval,
+          status: subscription.status,
+          priceUsdCents: subscription.priceUsdCents,
+          currency: subscription.currency || 'USD',
+          periodStart: subscription.periodStart,
+          periodEnd: subscription.periodEnd,
+          cancelAtPeriodEnd: Boolean(subscription.cancelAtPeriodEnd)
+        } : {
+          plan: 'free', billingInterval: 'monthly', status: 'active',
+          priceUsdCents: 0, currency: 'USD', periodStart: null, periodEnd: null,
+          cancelAtPeriodEnd: false
+        },
+        creditsBalance: latest?.balanceAfter ?? 0
+      };
+    });
+  }
+
+  return { createUser, verifyUser, createSession, getUserForSession, deleteSession, connectCoreKey, getCoreKey, disconnectCoreKey, coreConnectionStatus, listProjects, createProject, getProject, updateProject, deleteProject, putFile, putFiles, deleteFile, getBillingState };
 }
