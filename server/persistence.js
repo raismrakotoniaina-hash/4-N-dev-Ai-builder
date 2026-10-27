@@ -4,7 +4,7 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
 const scrypt = promisify(scryptCallback);
-const EMPTY = { users: [], sessions: [], projects: [] };
+const EMPTY = { users: [], sessions: [], projects: [], subscriptions: [], creditLedger: [] };
 
 function hash(value) {
   return createHash('sha256').update(value).digest('hex');
@@ -27,7 +27,9 @@ export function createPersistence({ filePath = process.env.BUILDER_DATA_FILE || 
       return {
         users: Array.isArray(parsed.users) ? parsed.users : [],
         sessions: Array.isArray(parsed.sessions) ? parsed.sessions : [],
-        projects: Array.isArray(parsed.projects) ? parsed.projects : []
+        projects: Array.isArray(parsed.projects) ? parsed.projects : [],
+        subscriptions: Array.isArray(parsed.subscriptions) ? parsed.subscriptions : [],
+        creditLedger: Array.isArray(parsed.creditLedger) ? parsed.creditLedger : []
       };
     } catch (error) {
       if (error.code === 'ENOENT') return structuredClone(EMPTY);
@@ -254,5 +256,95 @@ export function createPersistence({ filePath = process.env.BUILDER_DATA_FILE || 
     });
   }
 
-  return { createUser, verifyUser, createSession, getUserForSession, deleteSession, connectCoreKey, getCoreKey, disconnectCoreKey, coreConnectionStatus, listProjects, createProject, getProject, updateProject, deleteProject, putFile, putFiles, deleteFile };
+  async function recordSubscription({ userId, plan, billingInterval, status, periodStart, periodEnd, cancelAtPeriodEnd = false, provider = null, providerCustomerId = null, providerSubscriptionId = null }) {
+    const prices = { free: { monthly: 0, yearly: 0 }, starter: { monthly: 1200, yearly: 10800 }, pro: { monthly: 2500, yearly: 22800 }, business: { monthly: 5000, yearly: 48000 } };
+    if (!prices[plan] || !Object.hasOwn(prices[plan], billingInterval)) throw new TypeError('Invalid Builder plan or billing interval.');
+    if (!['incomplete', 'active', 'past_due', 'canceled', 'expired'].includes(status)) throw new TypeError('Invalid subscription status.');
+    const start = new Date(periodStart);
+    const end = new Date(periodEnd);
+    if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || end <= start) throw new TypeError('Invalid subscription period.');
+    return transact((state) => {
+      if (!state.users.some((user) => user.id === userId)) throw new Error('Account not found.');
+      const subscription = {
+        id: randomUUID(), userId, plan, billingInterval, status, priceUsdCents: prices[plan][billingInterval],
+        currency: 'USD', periodStart: start.toISOString(), periodEnd: end.toISOString(),
+        cancelAtPeriodEnd: Boolean(cancelAtPeriodEnd), canceledAt: status === 'canceled' ? new Date().toISOString() : null,
+        provider, providerCustomerId, providerSubscriptionId, createdAt: new Date().toISOString()
+      };
+      state.subscriptions.push(subscription);
+      return structuredClone(subscription);
+    });
+  }
+
+  async function getBillingState(userId) {
+    return view((state) => {
+      const now = Date.now();
+      const candidates = state.subscriptions
+        .filter((item) => item.userId === userId && ['active', 'past_due', 'canceled'].includes(item.status) && Date.parse(item.periodEnd) > now)
+        .sort((a, b) => {
+          const priority = { active: 0, past_due: 1, canceled: 2 };
+          return priority[a.status] - priority[b.status] || Date.parse(b.periodEnd) - Date.parse(a.periodEnd);
+        });
+      const subscription = candidates[0];
+      const ledger = state.creditLedger.filter((item) => item.userId === userId);
+      const latest = ledger.reduce((best, item) => !best || item.sequence > best.sequence ? item : best, null);
+      return {
+        subscription: subscription ? {
+          plan: subscription.plan,
+          billingInterval: subscription.billingInterval,
+          status: subscription.status,
+          priceUsdCents: subscription.priceUsdCents,
+          currency: subscription.currency || 'USD',
+          periodStart: subscription.periodStart,
+          periodEnd: subscription.periodEnd,
+          cancelAtPeriodEnd: Boolean(subscription.cancelAtPeriodEnd)
+        } : {
+          plan: 'free', billingInterval: 'monthly', status: 'active',
+          priceUsdCents: 0, currency: 'USD', periodStart: null, periodEnd: null,
+          cancelAtPeriodEnd: false
+        },
+        creditsBalance: latest?.balanceAfter ?? 0
+      };
+    });
+  }
+
+  async function changeCredits({ userId, amount, idempotencyKey, eventType, reason, projectId = null, jobId = null, periodStart = null, periodEnd = null, metadata = {} }) {
+    if (!Number.isSafeInteger(amount) || amount === 0 || typeof idempotencyKey !== 'string' || !idempotencyKey.trim() || idempotencyKey.length > 200) {
+      throw new TypeError('A non-zero integer credit amount and valid idempotency key are required.');
+    }
+    if (typeof reason !== 'string' || !reason.trim()) throw new TypeError('A credit ledger reason is required.');
+    if (!['grant', 'reserve', 'charge', 'refund', 'expire', 'adjustment'].includes(eventType)) throw new TypeError('Invalid credit ledger event type.');
+    return transact((state) => {
+      if (!state.users.some((user) => user.id === userId)) throw new Error('Account not found.');
+      const existing = state.creditLedger.find((item) => item.userId === userId && item.idempotencyKey === idempotencyKey);
+      if (existing) return { balance: existing.balanceAfter, duplicate: true };
+      const userLedger = state.creditLedger.filter((item) => item.userId === userId);
+      const current = userLedger.reduce((best, item) => !best || item.sequence > best.sequence ? item : best, null);
+      const balance = (current?.balanceAfter ?? 0) + amount;
+      if (balance < 0) {
+        const error = new Error('Insufficient Builder credits.');
+        error.code = 'INSUFFICIENT_CREDITS';
+        throw error;
+      }
+      state.creditLedger.push({
+        sequence: state.creditLedger.reduce((max, item) => Math.max(max, item.sequence || 0), 0) + 1,
+        userId, delta: amount, balanceAfter: balance, eventType, idempotencyKey,
+        periodStart, periodEnd, projectId, jobId, reason: reason.trim(), metadata,
+        createdAt: new Date().toISOString()
+      });
+      return { balance, duplicate: false };
+    });
+  }
+
+  async function grantCredits(options) {
+    if (!Number.isSafeInteger(options.amount) || options.amount <= 0) throw new TypeError('Granted credits must be a positive integer.');
+    return changeCredits({ ...options, eventType: 'grant' });
+  }
+
+  async function consumeCredits(options) {
+    if (!Number.isSafeInteger(options.amount) || options.amount <= 0) throw new TypeError('Consumed credits must be a positive integer.');
+    return changeCredits({ ...options, amount: -options.amount, eventType: 'charge' });
+  }
+
+  return { createUser, verifyUser, createSession, getUserForSession, deleteSession, connectCoreKey, getCoreKey, disconnectCoreKey, coreConnectionStatus, listProjects, createProject, getProject, updateProject, deleteProject, putFile, putFiles, deleteFile, getBillingState, recordSubscription, grantCredits, consumeCredits };
 }
