@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AppLayout } from './components/layout/AppLayout';
 import { Modal } from './components/ui/Modal';
 import { navigationItems } from './data/navigation';
@@ -22,11 +22,17 @@ function App() {
   const [prompt, setPrompt] = useState('');
   const [message, setMessage] = useState('Midira na mamoròna kaonty hanombohana.');
   const [busy, setBusy] = useState(false);
+  const [generationLog, setGenerationLog] = useState<string[]>([]);
+  const logEndRef = useRef<HTMLDivElement | null>(null);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('register');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
   const currentPage = navigationItems.find((item) => item.id === activeView) ?? navigationItems[0];
+
+  useEffect(() => {
+    logEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  }, [generationLog]);
 
   async function refreshProjects() {
     const items = await builderApi.listProjects();
@@ -95,21 +101,49 @@ function App() {
   }
 
   async function createProject() {
-    if (!prompt.trim() || !user) return;
+    if (!prompt.trim() || !user || busy) return;
     setBusy(true);
+    const description = prompt.trim();
+    const stages = [
+      'Voaray ny prompt; mamorona tetikasa sy manomana ny fangatahana.',
+      'Mandefa ny famaritana any amin’ny 4N DEV Core.',
+      'Mandamina ny plan: pejy, endrika, singa ary fepetra ilaina.',
+      'Mandinika sy manatsara ny plan alohan’ny fanoratana kaody.',
+      'Manoratra ny rakitra React, TypeScript, HTML ary CSS.',
+      'Mandinika indray ny kaody sy manitsy lesoka hita.',
+      'Manamarina ny rakitra ary manangana build mitokana.',
+      'Mitahiry ny rakitra rehefa mahomby ny build.'
+    ];
+    setGenerationLog([stages[0]]);
+    setActiveView('builder');
+    setMessage('Generation AI tena izy no mandeha; 10 crédit Builder no sarany raha vita soa aman-tsara.');
+    let stageIndex = 1;
+    const progressTimer = window.setInterval(() => {
+      if (stageIndex < stages.length - 1) {
+        setGenerationLog((previous) => [...previous, stages[stageIndex]]);
+        stageIndex += 1;
+      }
+    }, 4500);
     try {
-      const description = prompt.trim();
       const project = await builderApi.createProject(description.slice(0, 120), description.slice(0, 2000));
-      setMessage('Mamorona prototype Free amin’ny algorithm sy templates; tsy mampiasa crédit Core…');
-      const generated = await builderApi.generateFreePrototype(project.id, description);
+      const generated = await builderApi.generateProject(project.id, description);
+      window.clearInterval(progressTimer);
+      setGenerationLog((previous) => [...previous, stages[stages.length - 1], 'VITA: voatahiry ny rakitra ' + generated.generatedFiles.length + ' ary nahomby ny build.']);
       await refreshProjects();
-      setSelected(generated.project as ProjectWithFiles);
-      setPrompt(''); setModal(false); setActiveView('files');
-      setMessage('Vita ny prototype Free (' + generated.template + '). Rakitra: ' + generated.generatedFiles.length + '. Antso Core: ' + generated.coreCalls + '.');
+      setSelected({ ...(generated.project as ProjectWithFiles), files: generated.generatedFiles as ProjectFile[] });
+      setPrompt('');
+      setModal(false);
+      setActiveView('files');
+      setMessage('Nahomby ny generation AI. Rakitra: ' + generated.generatedFiles.length + '. Crédit nampiasaina: ' + (generated.creditsCharged ?? 10) + '.');
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Tsy nahomby ny génération; mety mbola voatahiry ilay tetikasa.');
+      window.clearInterval(progressTimer);
+      const detail = error instanceof Error ? error.message : 'Tsy nahomby ny génération AI.';
+      setGenerationLog((previous) => [...previous, 'TSY TAFITA: ' + detail, 'Tsy tokony hoheverina ho vita ny génération raha tsy tafaverina ny valiny sy ny fanamarinana build.']);
+      setMessage(detail);
       await refreshProjects().catch(() => {});
-    } finally { setBusy(false); }
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function openProject(project: Project) {
@@ -151,12 +185,20 @@ function App() {
                 <button className="project-row" onClick={signOut}>{t('Hivoaka')}</button>
               </div>
 
+              {generationLog.length > 0 && <section className="workspace-card generation-progress" aria-live="polite">
+                <h2>{busy ? 'Mandroso ny generation AI…' : 'Tatitra generation AI'}</h2>
+                <p>Dingana aseho eto no fizotry ny pipeline; mety hitohy ao amin’ny serveur ny dingana iray mandra-pamalian’ny Core na ny build worker.</p>
+                <ol className="generation-log">{generationLog.map((line, index) => <li key={index} className={line.startsWith('VITA:') ? 'generation-log__done' : line.startsWith('TSY TAFITA:') ? 'generation-log__error' : ''}>{line}</li>)}</ol>
+                {busy && <div className="generation-progress__bar" role="progressbar" aria-label="Generation AI mandeha"><span /></div>}
+                <div ref={logEndRef} />
+              </section>}
+
               {activeView === 'dashboard' && <section className="workspace-grid">
                 <div className="workspace-card workspace-hero">
                   <span className="eyebrow">{t('BUILD WITH AI')}</span><h2>{t('Farito ny tetikasanao.')}</h2>
-                  <p>{t('Free prototype: algorithm sy templates, tsy mandany crédit Core.')}</p>
+                  <p>Generation AI tena izy: mandrindra modely 4 ao amin’ny Core, manoratra kaody, mandinika azy ary manao build mitokana. Sarany: 10 crédit Builder raha vita.</p>
                   <textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder={t('Ohatra: Mamoròna boutique misy catalogue, panier ary espace admin…')} />
-                  <button disabled={busy || !prompt.trim()} onClick={createProject}>{busy ? 'Mamorona prototype Free…' : 'Mamorona prototype Free (tsy misy crédit Core)'}</button>
+                  <button disabled={busy || !prompt.trim()} onClick={createProject}>{busy ? 'Manao generation AI…' : 'Mamorona amin’ny AI (10 crédit rehefa vita)'}</button>
                 </div>
                 <div className="workspace-card"><h3>{t('Tetikasa')}</h3><strong>{projects.length}</strong><p>{t('Voatahiry isaky ny kaonty.')}</p>
                   {projects.slice(0, 5).map((project) => <button className="project-row" key={project.id} onClick={() => openProject(project)}>{project.name}</button>)}

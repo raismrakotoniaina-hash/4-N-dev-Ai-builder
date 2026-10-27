@@ -1197,3 +1197,62 @@ a {
   .language-selector > span { display: none; }
   .language-selector select { max-width: 6.5rem; }
 }
+
+
+/* Real AI generation progress log */
+.generation-progress {
+  margin-bottom: 18px;
+  border-color: rgba(57, 216, 255, 0.3);
+}
+.generation-log {
+  display: flex;
+  max-height: 240px;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+  margin: 16px 0 0;
+  padding: 0 8px 0 28px;
+  scroll-behavior: smooth;
+}
+.generation-log li {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(57, 216, 255, 0.045);
+  color: var(--text-secondary);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.generation-log li::marker {
+  color: var(--cyan);
+  font-family: 'DM Mono', monospace;
+}
+.generation-log .generation-log__done {
+  border-color: rgba(66, 232, 160, 0.32);
+  color: var(--green);
+  background: rgba(66, 232, 160, 0.07);
+}
+.generation-log .generation-log__error {
+  border-color: rgba(255, 100, 124, 0.35);
+  color: var(--danger);
+  background: rgba(255, 100, 124, 0.07);
+}
+.generation-progress__bar {
+  height: 4px;
+  margin-top: 16px;
+  overflow: hidden;
+  border-radius: 99px;
+  background: rgba(148, 163, 184, 0.14);
+}
+.generation-progress__bar span {
+  display: block;
+  width: 38%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--primary), var(--cyan));
+  animation: generation-progress-run 1.4s ease-in-out infinite alternate;
+}
+@keyframes generation-progress-run {
+  from { transform: translateX(-10%); }
+  to { transform: translateX(180%); }
+}
