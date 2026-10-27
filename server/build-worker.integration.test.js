@@ -25,4 +25,7 @@ test('builds a generated React app in the isolated Docker sandbox', {
   const result = await buildGeneratedApp(files);
   assert.equal(result.success, true);
   assert.match(result.log, /built in/i);
+  assert.match(result.previewHtml, /Content-Security-Policy/);
+  assert.match(result.previewHtml, /Isolated build passed/);
+  assert.doesNotMatch(result.previewHtml, /src=\"\/assets\//);
 });
