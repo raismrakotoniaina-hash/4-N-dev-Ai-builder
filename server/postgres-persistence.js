@@ -1,5 +1,6 @@
 import { randomBytes, randomUUID, scrypt as scryptCallback, createCipheriv, createDecipheriv, createHash, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
+import { getBuilderPriceUsdCents } from './builder-plans.js';
 
 const scrypt = promisify(scryptCallback);
 
@@ -258,8 +259,8 @@ export function createPostgresPersistence({ pool, encryptionKey = process.env.BU
   }
 
   async function recordSubscription({ userId, plan, billingInterval, status, periodStart, periodEnd, cancelAtPeriodEnd = false, provider = null, providerCustomerId = null, providerSubscriptionId = null }) {
-    const prices = { free: { monthly: 0, yearly: 0 }, starter: { monthly: 1200, yearly: 10800 }, pro: { monthly: 2500, yearly: 22800 }, business: { monthly: 5000, yearly: 48000 } };
-    if (!prices[plan] || !prices[plan][billingInterval] && prices[plan][billingInterval] !== 0) throw new TypeError('Invalid Builder plan or billing interval.');
+    const priceUsdCents = getBuilderPriceUsdCents(plan, billingInterval);
+    if (priceUsdCents === null) throw new TypeError('Invalid Builder plan or billing interval.');
     if (!['incomplete', 'active', 'past_due', 'canceled', 'expired'].includes(status)) throw new TypeError('Invalid subscription status.');
     const start = new Date(periodStart);
     const end = new Date(periodEnd);
@@ -269,7 +270,7 @@ export function createPostgresPersistence({ pool, encryptionKey = process.env.BU
       `INSERT INTO builder_subscriptions(id,user_id,plan,billing_interval,status,price_usd_cents,currency,period_start,period_end,cancel_at_period_end,canceled_at,provider,provider_customer_id,provider_subscription_id)
        VALUES($1,$2,$3,$4,$5,$6,'USD',$7,$8,$9,CASE WHEN $5='canceled' THEN NOW() ELSE NULL END,$10,$11,$12)
        RETURNING id,plan,billing_interval,status,price_usd_cents,period_start,period_end,cancel_at_period_end`,
-      [id, userId, plan, billingInterval, status, prices[plan][billingInterval], start, end, Boolean(cancelAtPeriodEnd), provider, providerCustomerId, providerSubscriptionId]
+      [id, userId, plan, billingInterval, status, priceUsdCents, start, end, Boolean(cancelAtPeriodEnd), provider, providerCustomerId, providerSubscriptionId]
     );
     return result.rows[0];
   }
