@@ -46,6 +46,12 @@ test('billing endpoint is authenticated and returns server-owned prices and Free
     rolloverEnabled: false,
     status: 'not_enabled'
   });
-  assert.equal(payload.billing.plans.find((plan) => plan.id === 'starter').pricesUsdCents.yearly, 10800);
+  const starter = payload.billing.plans.find((plan) => plan.id === 'starter');
+  assert.equal(starter.pricesUsdCents.monthly, 1200);
+  assert.equal(starter.pricesUsdCents.yearly, 10800);
+  assert.equal(starter.yearlySavingsUsdCents, 3600);
+  assert.equal(starter.yearlyMonthlyEquivalentUsdCents, 900);
+  assert.equal(payload.billing.plans.find((plan) => plan.id === 'pro').yearlySavingsUsdCents, 7200);
+  assert.equal(payload.billing.plans.find((plan) => plan.id === 'business').yearlySavingsUsdCents, 12000);
   assert.equal(payload.billing.plans.find((plan) => plan.id === 'business').monthlyCredits, 400);
 });
