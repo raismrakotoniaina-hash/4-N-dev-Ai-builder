@@ -1,5 +1,7 @@
+import { randomUUID } from 'node:crypto';
 import { validateBuild } from './build-worker-client.js';
 const COOKIE = 'builder_session';
+const GENERATION_CREDIT_COST = 10;
 // Developer-controlled orchestration: end users never select models.
 const PIPELINE = Object.freeze({
  planner: '4n-chat-naya-6',
@@ -27,6 +29,7 @@ export function createGenerationApi({store,fetchImpl=globalThis.fetch,coreApiUrl
  return async function generationApi(req,res,url){
   const m=url.pathname.match(/^\/api\/projects\/([0-9a-f-]{36})\/generate$/i);if(!m||req.method!=='POST')return false;
   const user=await store.getUserForSession(cookieValue(req.headers.cookie));if(!user)return send(res,401,{success:false,error:'Authentication required.'});
+  let creditJobId=null;let creditsCharged=false;let generationCommitted=false;
   try{
    const chunks=[];let size=0;for await(const chunk of req){size+=chunk.length;if(size>16000)return send(res,413,{success:false,error:'Generation request is too large.'});chunks.push(chunk);}
    let body;try{body=chunks.length?JSON.parse(Buffer.concat(chunks).toString('utf8')):{};}catch{return send(res,400,{success:false,error:'Request body must be valid JSON.'});}
@@ -34,6 +37,15 @@ export function createGenerationApi({store,fetchImpl=globalThis.fetch,coreApiUrl
    if(!prompt||prompt.length>12000)return send(res,400,{success:false,error:'Describe the app in 1–12,000 characters.'});
    const project=await store.getProject(user.id,m[1]);if(!project)return send(res,404,{success:false,error:'Project not found.'});
    const key=coreApiKey||await store.getCoreKey(user.id);if(!key)return send(res,503,{success:false,error:'Builder Core service key is not configured.'});
+   if(typeof store.consumeCredits!=='function'||typeof store.grantCredits!=='function')return send(res,503,{success:false,error:'Builder credit accounting is not configured.'});
+   creditJobId=randomUUID();
+   try{
+    await store.consumeCredits({userId:user.id,amount:GENERATION_CREDIT_COST,idempotencyKey:'generation:'+creditJobId+':charge',reason:'AI app generation',projectId:m[1],jobId:creditJobId});
+    creditsCharged=true;
+   }catch(error){
+    if(error.code==='INSUFFICIENT_CREDITS')return send(res,402,{success:false,error:'Insufficient Builder credits. Choose a paid plan or add credits before generating.'});
+    throw error;
+   }
    const plan=await callCore(fetchImpl,coreApiUrl,key,'chat',{model:PIPELINE.planner,max_output_tokens:700,messages:[
     {role:'system',content:'You are the lead architect of a production web app builder. Convert the user request into a concise implementation plan. Identify pages, features, data entities, validation, security and responsive behavior. No source code.'},
     {role:'user',content:prompt}
@@ -64,7 +76,13 @@ export function createGenerationApi({store,fetchImpl=globalThis.fetch,coreApiUrl
    let files;try{files=parseFiles(review.data?.output);}catch(e){return send(res,502,{success:false,error:e.message,usage:result.usage});}
    try{await buildValidator(files);}catch(e){return send(res,e.statusCode||422,{success:false,error:'Generated app failed isolated build validation: '+e.message,usage:result.usage});}
    const savedFiles=await store.putFiles(user.id,m[1],files);if(!savedFiles)return send(res,404,{success:false,error:'Project not found while saving files.'});
-   return send(res,200,{success:true,project:await store.getProject(user.id,m[1]),generatedFiles:files,modelsUsed:Object.values(PIPELINE),usage:{charged_usd:[plan.usage,planReview.usage,result.usage,review.usage].reduce((sum,item)=>sum+Number(item?.charged_usd||0),0),currency:'USD',calls:{planner:plan.usage,plannerReview:planReview.usage,coder:result.usage,codeReviewer:review.usage}}});
+   generationCommitted=true;
+   return send(res,200,{success:true,project:await store.getProject(user.id,m[1]),generatedFiles:files,modelsUsed:Object.values(PIPELINE),creditsCharged:GENERATION_CREDIT_COST,usage:{charged_usd:[plan.usage,planReview.usage,result.usage,review.usage].reduce((sum,item)=>sum+Number(item?.charged_usd||0),0),currency:'USD',calls:{planner:plan.usage,plannerReview:planReview.usage,coder:result.usage,codeReviewer:review.usage}}});
   }catch(e){return send(res,e.statusCode||502,{success:false,error:e.statusCode?e.message:'Generation failed unexpectedly.'});}
+  finally{
+   if(creditsCharged&&!generationCommitted){
+    await store.grantCredits({userId:user.id,amount:GENERATION_CREDIT_COST,idempotencyKey:'generation:'+creditJobId+':refund',reason:'Refund for unsuccessful AI app generation',projectId:m[1],jobId:creditJobId}).catch(()=>{});
+   }
+  }
  };
 }
