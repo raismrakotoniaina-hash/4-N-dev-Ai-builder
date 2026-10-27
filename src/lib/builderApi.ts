@@ -27,7 +27,7 @@ export interface BuilderBilling {
 }
 export interface CoreConnection { connected: boolean; connectedAt: string | null; }
 export interface GeneratedFile { path: string; content: string; }
-export interface GenerationResult { project: Project & { files?: GeneratedFile[] }; generatedFiles: GeneratedFile[]; modelsUsed: string[]; usage?: { charged_usd?: number; currency?: string; input_tokens?: number; output_tokens?: number }; }
+export interface GenerationResult { project: Project & { files?: GeneratedFile[] }; generatedFiles: GeneratedFile[]; modelsUsed: string[]; creditsCharged?: number; usage?: { charged_usd?: number; currency?: string; input_tokens?: number; output_tokens?: number }; }
 
 export const builderApi = {
   billing(): Promise<BuilderBilling> {
