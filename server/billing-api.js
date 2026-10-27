@@ -1,4 +1,4 @@
-import { BUILDER_PLANS } from './builder-plans.js';
+import { BUILDER_PLANS, getBuilderYearlySavingsUsdCents } from './builder-plans.js';
 
 const COOKIE = 'builder_session';
 
@@ -32,6 +32,8 @@ export function createBillingApi({ store }) {
       id: plan.id,
       pricesUsdCents: plan.pricesUsdCents,
       monthlyCredits: plan.monthlyCredits,
+      yearlySavingsUsdCents: getBuilderYearlySavingsUsdCents(plan.id),
+      yearlyMonthlyEquivalentUsdCents: plan.id === 'free' ? 0 : Math.round(plan.pricesUsdCents.yearly / 12),
       prototypeOnly: plan.prototypeOnly
     }));
     return send(res, 200, {
