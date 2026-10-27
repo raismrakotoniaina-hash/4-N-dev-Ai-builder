@@ -1,6 +1,6 @@
 const COOKIE = 'builder_session';
 const MAX_PROMPT = 12000;
-const MAX_FILES = 8;
+const MAX_FILES = 12;
 
 function cookieValue(header = '') {
   for (const item of header.split(';')) {
@@ -130,7 +130,7 @@ footer { padding:1.5rem; text-align:center; color:#6a7487; font-size:.85rem; bor
     },
     include: ['src']
   }, null, 2);
-  return [
+  const files = [
     { path: 'package.json', content: packageJson },
     { path: 'index.html', content: '<!doctype html><html lang="mg"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><meta name="description" content="4N DEV AI Builder"/><title>4N DEV AI Builder</title></head><body><div id="root"></div><script type="module" src="/src/main.tsx"></script></body></html>' },
     { path: 'tsconfig.json', content: tsconfig },
@@ -138,7 +138,15 @@ footer { padding:1.5rem; text-align:center; color:#6a7487; font-size:.85rem; bor
     { path: 'src/main.tsx', content: "import { StrictMode } from 'react';\nimport { createRoot } from 'react-dom/client';\nimport App from './App';\nimport './index.css';\n\ncreateRoot(document.getElementById('root')!).render(<StrictMode><App /></StrictMode>);\n" },
     { path: 'src/App.tsx', content: app },
     { path: 'src/index.css', content: css }
-  ].slice(0, MAX_FILES);
+  ];
+  if (/target platform:\\s*mobile|mobile app|application mobile|react native|expo|android app|ios app/i.test(prompt)) {
+    files.push(
+      { path: 'mobile/package.json', content: JSON.stringify({ name: '4ndev-mobile-app', version: '1.0.0', private: true, main: 'node_modules/expo/AppEntry.js', scripts: { start: 'expo start', android: 'expo start --android', ios: 'expo start --ios' }, dependencies: { expo: '53.0.20', 'expo-status-bar': '2.2.3', react: '19.0.0', 'react-native': '0.79.5' } }, null, 2) },
+      { path: 'mobile/app.json', content: JSON.stringify({ expo: { name: safeName, slug: '4ndev-mobile-app', version: '1.0.0', orientation: 'portrait', userInterfaceStyle: 'automatic', ios: { supportsTablet: true }, android: { adaptiveIcon: { backgroundColor: '#ffffff' } } } }, null, 2) },
+      { path: 'mobile/App.tsx', content: "import { StatusBar } from 'expo-status-bar';\\nimport { SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';\\n\\nexport default function App() {\\n  return <SafeAreaView style={styles.safe}><StatusBar style=\"auto\" /><ScrollView contentContainerStyle={styles.page}><Text style={styles.eyebrow}>4N DEV · MOBILE</Text><Text style={styles.title}>" + safeName.replace(/</g, '&lt;') + "</Text><Text style={styles.description}>" + description.replace(/</g, '&lt;') + "</Text><View style={styles.card}><Text style={styles.heading}>Tongasoa</Text><Text style={styles.body}>Eto no hanombohana ny efijery sy ny endri-javatra an’ny application-nao.</Text></View><View style={styles.card}><Text style={styles.heading}>Dingana manaraka</Text><Text style={styles.body}>Ampio eto ny pejy, ny fitantanana angona ary ny fifandraisana ilain’ny tetikasanao.</Text></View></ScrollView></SafeAreaView>;\\n}\\n\\nconst styles = StyleSheet.create({ safe: { flex: 1, backgroundColor: '#f4f7fc' }, page: { padding: 24, gap: 16 }, eyebrow: { color: '#2458d3', fontWeight: '800', letterSpacing: 2 }, title: { color: '#172033', fontSize: 32, fontWeight: '800' }, description: { color: '#59657a', fontSize: 16, lineHeight: 24 }, card: { backgroundColor: '#fff', borderRadius: 16, padding: 20, gap: 8 }, heading: { fontSize: 20, fontWeight: '700', color: '#172033' }, body: { color: '#59657a', fontSize: 15, lineHeight: 22 } });\\n" }
+    );
+  }
+  return files.slice(0, MAX_FILES);
 }
 
 export function createFreePrototypeApi({ store, buildValidator = async () => ({ success: true }) }) {
