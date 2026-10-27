@@ -1,5 +1,5 @@
 const COOKIE = 'builder_session';
-const MAX_PROMPT = 4000;
+const MAX_PROMPT = 12000;
 const MAX_FILES = 8;
 
 function cookieValue(header = '') {
@@ -143,23 +143,38 @@ footer { padding:1.5rem; text-align:center; color:#6a7487; font-size:.85rem; bor
 
 export function createFreePrototypeApi({ store, buildValidator = async () => ({ success: true }) }) {
   return async function freePrototypeApi(req, res, url) {
-    const match = url.pathname.match(/^\/api\/projects\/([0-9a-f-]{36})\/prototype$/i);
+    const match = url.pathname.match(/^\/api\/projects\/([0-9a-f-]{36})\/(prototype|generate)$/i);
     if (!match || req.method !== 'POST') return false;
     const user = await store.getUserForSession(cookieValue(req.headers.cookie));
     if (!user) return send(res, 401, { success: false, error: 'Authentication required.' });
+    // The single /generate endpoint chooses the route server-side. Free or inactive
+    // subscriptions use the local template generator; only an active paid plan
+    // falls through to the Core generation handler.
+    if (match[2].toLowerCase() === 'generate') {
+      if (typeof store.getBillingState !== 'function') {
+        return send(res, 503, { success: false, error: 'Subscription status is unavailable.' });
+      }
+      const billing = await store.getBillingState(user.id);
+      const subscription = billing?.subscription;
+      const paidAndActive = subscription
+        && subscription.plan !== 'free'
+        && subscription.status === 'active'
+        && Date.parse(subscription.periodEnd) > Date.now();
+      if (paidAndActive) return false;
+    }
     try {
       const chunks = [];
       let size = 0;
       for await (const chunk of req) {
         size += chunk.length;
-        if (size > 8000) return send(res, 413, { success: false, error: 'Prototype request is too large.' });
+        if (size > 16000) return send(res, 413, { success: false, error: 'Generation request is too large.' });
         chunks.push(chunk);
       }
       let body;
       try { body = chunks.length ? JSON.parse(Buffer.concat(chunks).toString('utf8')) : {}; }
       catch { return send(res, 400, { success: false, error: 'Request body must be valid JSON.' }); }
       const prompt = typeof body.prompt === 'string' ? body.prompt.trim() : '';
-      if (!prompt || prompt.length > MAX_PROMPT) return send(res, 400, { success: false, error: 'Describe the prototype in 1–4,000 characters.' });
+      if (!prompt || prompt.length > MAX_PROMPT) return send(res, 400, { success: false, error: 'Describe the app in 1–12,000 characters.' });
       const project = await store.getProject(user.id, match[1]);
       if (!project) return send(res, 404, { success: false, error: 'Project not found.' });
       const template = chooseTemplate(prompt);
@@ -171,13 +186,14 @@ export function createFreePrototypeApi({ store, buildValidator = async () => ({ 
       return send(res, 200, {
         success: true,
         mode: 'free-template',
+        generationMode: 'free',
         coreCalls: 0,
         project: await store.getProject(user.id, match[1]),
         generatedFiles: savedFiles,
         template
       });
     } catch (error) {
-      return send(res, error.statusCode || 422, { success: false, error: error.statusCode ? error.message : 'Free prototype generation failed.' });
+      return send(res, error.statusCode || 422, { success: false, error: error.statusCode ? error.message : 'Application generation failed.' });
     }
   };
 }
