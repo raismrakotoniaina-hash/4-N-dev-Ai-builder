@@ -6,7 +6,7 @@ import { builderApi, type BuilderBilling, type BuilderUser } from './lib/builder
 import { useLanguage } from './lib/i18n';
 import type { AppView, Project, ProjectFile } from './types/app';
 
-type ProjectWithFiles = Project & { files?: ProjectFile[]; fileCount?: number };
+type ProjectWithFiles = Project & { files?: ProjectFile[]; fileCount?: number; previewHtml?: string };
 
 function App() {
   const { t } = useLanguage();
@@ -124,7 +124,7 @@ function App() {
       if (finalStatus?.steps.length) setGenerationLog(finalStatus.steps.map((step) => step.message));
       else setGenerationLog((previous) => [...previous, 'VITA: voatahiry ny rakitra ary nahomby ny build.']);
       await refreshProjects();
-      setSelected({ ...(generated.project as ProjectWithFiles), files: generated.generatedFiles as ProjectFile[] });
+      const storedFiles = (generated.project as ProjectWithFiles).files || [];\n      const previewHtml = storedFiles.find((file) => file.path === '__4ndev_preview.html')?.content;\n      setSelected({ ...(generated.project as ProjectWithFiles), files: generated.generatedFiles as ProjectFile[], previewHtml });
       setPrompt('');
       setModal(false);
       setActiveView('files');
@@ -204,7 +204,9 @@ function App() {
 
               {activeView === 'projects' && <section className="workspace-card"><h2>{t('Ny tetikasako')}</h2><p>Tehirizina ao amin’ny backend, ary ny tompony ihany no mahazo azy.</p>{projects.map((project) => <button className="project-row" key={project.id} onClick={() => openProject(project)}>{project.name}</button>)}{!projects.length && <p>{t('Tsy mbola misy tetikasa.')}</p>}</section>}
 
-              {activeView === 'files' && <section className="workspace-card"><h2>{selected?.name || 'Rakitra tetikasa'}</h2>{selected?.files?.length ? selected.files.map((file) => <div className="file-row" key={file.path}><code>{file.path}</code><span>{file.content.length} chars</span><details><summary>{t('Jereo ny kaody')}</summary><pre>{file.content}</pre></details></div>) : <p>{selected ? 'Mbola tsy misy rakitra voatahiry ao amin’ity tetikasa ity.' : 'Misafidiana tetikasa ao amin’ny Projects.'}</p>}</section>}
+              {activeView === 'preview' && <section className="workspace-card"><h2>{selected?.name || 'Preview application'}</h2>{selected?.previewHtml || selected?.files?.some((file) => file.path === '__4ndev_preview.html') ? <iframe title={'Preview ' + (selected?.name || 'application')} sandbox="allow-scripts" referrerPolicy="no-referrer" srcDoc={selected?.previewHtml || selected?.files?.find((file) => file.path === '__4ndev_preview.html')?.content} style={{ width: '100%', minHeight: '70vh', border: '1px solid #dbe2ee', borderRadius: '12px', background: '#fff' }} /> : <p>Tsy mbola misy preview voaorina ho an’ity tetikasa ity. Avereno ny generation rehefa misy ny build worker.</p>}<button onClick={() => setActiveView('files')}>Hijery ny rakitra</button></section>}
+
+              {activeView === 'files' && <section className="workspace-card"><h2>{selected?.name || 'Rakitra tetikasa'}</h2>{selected?.files?.filter((file) => file.path !== '__4ndev_preview.html').length ? selected.files.filter((file) => file.path !== '__4ndev_preview.html').map((file) => <div className="file-row" key={file.path}><code>{file.path}</code><span>{file.content.length} chars</span><details><summary>{t('Jereo ny kaody')}</summary><pre>{file.content}</pre></details></div>) : <p>{selected ? 'Mbola tsy misy rakitra voatahiry ao amin’ity tetikasa ity.' : 'Misafidiana tetikasa ao amin’ny Projects.'}</p>}</section>}
 
               {activeView === 'help' && <section className="workspace-card"><h2>{currentPage.label === 'Help Center' ? currentPage.label : 'Help Center'}</h2><p>Fanampiana amin’ny kaonty, famoronana tetikasa, fitahirizana rakitra ary famahana hadisoana.</p><p>Raha tsy mandeha ny génération, jereo ny hafatra aseho eo ambony ary aza averina imbetsaka ny fangatahana raha misy mety handany crédit.</p></section>}
 
