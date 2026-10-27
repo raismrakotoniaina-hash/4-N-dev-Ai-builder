@@ -288,5 +288,57 @@ export function createPostgresPersistence({ pool, encryptionKey = process.env.BU
     return { subscription: row, creditsBalance: balanceResult.rows[0]?.balance_after ?? 0 };
   }
 
-  return { createUser, verifyUser, createSession, getUserForSession, deleteSession, connectCoreKey, getCoreKey, disconnectCoreKey, coreConnectionStatus, listProjects, createProject, getProject, updateProject, deleteProject, putFile, putFiles, deleteFile, getBillingState };
+  async function changeCredits({ userId, amount, idempotencyKey, eventType, reason, projectId = null, jobId = null, periodStart = null, periodEnd = null, metadata = {} }) {
+    if (!Number.isSafeInteger(amount) || amount === 0 || typeof idempotencyKey !== 'string' || !idempotencyKey.trim() || idempotencyKey.length > 200) {
+      throw new TypeError('A non-zero integer credit amount and valid idempotency key are required.');
+    }
+    if (typeof reason !== 'string' || !reason.trim()) throw new TypeError('A credit ledger reason is required.');
+    if (!['grant', 'reserve', 'charge', 'refund', 'expire', 'adjustment'].includes(eventType)) throw new TypeError('Invalid credit ledger event type.');
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const user = await client.query('SELECT id FROM builder_users WHERE id=$1 FOR UPDATE', [userId]);
+      if (!user.rowCount) throw new Error('Account not found.');
+      const existing = await client.query('SELECT balance_after FROM builder_credit_ledger WHERE user_id=$1 AND idempotency_key=$2', [userId, idempotencyKey]);
+      if (existing.rowCount) {
+        await client.query('COMMIT');
+        return { balance: existing.rows[0].balance_after, duplicate: true };
+      }
+      const current = await client.query('SELECT balance_after FROM builder_credit_ledger WHERE user_id=$1 ORDER BY id DESC LIMIT 1', [userId]);
+      const balance = (current.rows[0]?.balance_after ?? 0) + amount;
+      if (balance < 0) {
+        const error = new Error('Insufficient Builder credits.');
+        error.code = 'INSUFFICIENT_CREDITS';
+        throw error;
+      }
+      await client.query(
+        `INSERT INTO builder_credit_ledger(user_id,delta,balance_after,event_type,idempotency_key,period_start,period_end,project_id,job_id,reason,metadata)
+         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb)`,
+        [userId, amount, balance, eventType, idempotencyKey, periodStart, periodEnd, projectId, jobId, reason.trim(), JSON.stringify(metadata)]
+      );
+      await client.query('COMMIT');
+      return { balance, duplicate: false };
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => {});
+      if (error.code === '23505') {
+        const existing = await pool.query('SELECT balance_after FROM builder_credit_ledger WHERE user_id=$1 AND idempotency_key=$2', [userId, idempotencyKey]);
+        if (existing.rowCount) return { balance: existing.rows[0].balance_after, duplicate: true };
+      }
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async function grantCredits(options) {
+    if (!Number.isSafeInteger(options.amount) || options.amount <= 0) throw new TypeError('Granted credits must be a positive integer.');
+    return changeCredits({ ...options, eventType: 'grant' });
+  }
+
+  async function consumeCredits(options) {
+    if (!Number.isSafeInteger(options.amount) || options.amount <= 0) throw new TypeError('Consumed credits must be a positive integer.');
+    return changeCredits({ ...options, amount: -options.amount, eventType: 'charge' });
+  }
+
+  return { createUser, verifyUser, createSession, getUserForSession, deleteSession, connectCoreKey, getCoreKey, disconnectCoreKey, coreConnectionStatus, listProjects, createProject, getProject, updateProject, deleteProject, putFile, putFiles, deleteFile, getBillingState, grantCredits, consumeCredits };
 }
