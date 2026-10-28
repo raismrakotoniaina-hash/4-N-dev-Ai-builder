@@ -22,10 +22,10 @@ function send(res,status,payload){res.writeHead(status,{'Content-Type':'applicat
 function safeDiagnosticMessage(error) {
  const message = error instanceof Error ? error.message : String(error ?? 'Unknown error');
  return message
-  .replace(/Bearer\\s+[^\\s"'\x60]+/gi, 'Bearer [REDACTED]')
+  .replace(/Bearer\s+[^\s"'\x60]+/gi, 'Bearer [REDACTED]')
   .replace(/4ndev_sk_[A-Za-z0-9_-]+/g, '[REDACTED_CORE_KEY]')
-  .replace(/\\bsk-[A-Za-z0-9_-]{12,}\\b/g, '[REDACTED_KEY]')
-  .replace(/(authorization\\s*[:=]\\s*)[^\\s,;]+/gi, '$1[REDACTED]')
+  .replace(/\bsk-[A-Za-z0-9_-]{12,}\b/g, '[REDACTED_KEY]')
+  .replace(/(authorization\s*[:=]\s*)[^\s,;]+/gi, '$1[REDACTED]')
   .slice(0, 1000);
 }
 function logGenerationError({ stage, error, jobId, projectId }) {
