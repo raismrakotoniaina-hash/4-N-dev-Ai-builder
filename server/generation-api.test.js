@@ -226,3 +226,33 @@ test('free accounts use the local app generator without Core calls or credit cha
   assert.equal((await store.getBillingState(user.id)).creditsBalance, 50);
   assert.ok(result.generatedFiles.some(file => file.path === 'src/App.tsx'));
 });
+
+test('logs sanitized diagnostic details and returns a reference when an unexpected build error occurs', async (t) => {
+  const originalError = console.error;
+  const logLines = [];
+  console.error = (...args) => logLines.push(args.join(' '));
+  t.after(() => { console.error = originalError; });
+
+  const secret = '4ndev_sk_DO_NOT_LOG_THIS_SECRET_0123456789';
+  const { base, cookie, project, store, user } = await setup(t, async (url, options) => {
+    return response(url.endsWith('/v1/chat') ? 'chat' : 'coding', JSON.parse(options.body).model);
+  }, async () => {
+    throw new Error('Vite worker failed while processing key ' + secret);
+  });
+
+  const r = await fetch(base + '/api/projects/' + project.id + '/generate', {
+    method: 'POST',
+    headers: { Cookie: cookie, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt: 'Create an app' })
+  });
+  const payload = await r.json();
+
+  assert.equal(r.status, 422);
+  assert.equal(payload.jobId.length > 0, true);
+  assert.match(payload.error, /Vite worker failed/);
+  assert.ok(logLines.some((line) => line.includes('builder-generation-error')));
+  assert.ok(logLines.some((line) => line.includes('isolated-build-validation')));
+  assert.ok(logLines.some((line) => line.includes('[REDACTED_CORE_KEY]')));
+  assert.ok(logLines.every((line) => !line.includes(secret)));
+  assert.equal((await store.getBillingState(user.id)).creditsBalance, 50);
+});
