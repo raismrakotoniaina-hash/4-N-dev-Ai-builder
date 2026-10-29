@@ -1,264 +1,30 @@
-import { useEffect, useRef, useState } from 'react';
-import { AppLayout } from './components/layout/AppLayout';
-import { Modal } from './components/ui/Modal';
-import { navigationItems } from './data/navigation';
-import { builderApi, type BuilderBilling, type BuilderUser } from './lib/builderApi';
-import { useLanguage } from './lib/i18n';
-import type { AppView, Project, ProjectFile } from './types/app';
-
-type ProjectWithFiles = Project & { files?: ProjectFile[]; fileCount?: number; previewHtml?: string };
-
-function App() {
-  const { t } = useLanguage();
-  const [activeView, setActiveView] = useState<AppView>('dashboard');
-  const [mobile, setMobile] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
-  const [modal, setModal] = useState(false);
-  const [user, setUser] = useState<BuilderUser | null>(null);
-  const [billing, setBilling] = useState<BuilderBilling | null>(null);
-  const [billingInterval, setBillingInterval] = useState<'monthly' | 'yearly'>('yearly');
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [selected, setSelected] = useState<ProjectWithFiles | null>(null);
-  const [prompt, setPrompt] = useState('');
-  const [appTarget, setAppTarget] = useState<'web' | 'mobile'>('web');
-  const [message, setMessage] = useState('Midira na mamoròna kaonty hanombohana.');
-  const [busy, setBusy] = useState(false);
-  const [generationLog, setGenerationLog] = useState<string[]>([]);
-  const logEndRef = useRef<HTMLDivElement | null>(null);
-  const [authMode, setAuthMode] = useState<'login' | 'register'>('register');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-
-  const currentPage = navigationItems.find((item) => item.id === activeView) ?? navigationItems[0];
-
-  useEffect(() => {
-    logEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-  }, [generationLog]);
-
-  async function refreshProjects() {
-    const items = await builderApi.listProjects();
-    setProjects(items);
-  }
-
-  useEffect(() => {
-    const showNotifications = () => setMessage('Tsy mbola misy fampandrenesana vaovao.');
-    window.addEventListener('builder:notifications', showNotifications);
-    return () => window.removeEventListener('builder:notifications', showNotifications);
-  }, []);
-
-  useEffect(() => {
-    let active = true;
-    builderApi.me().then(async (currentUser) => {
-      if (!active) return;
-      setUser(currentUser);
-      const items = await builderApi.listProjects();
-      if (!active) return;
-      setProjects(items);
-      setMessage('Tafiditra soa aman-tsara.');
-    }).catch(() => {
-      if (active) setUser(null);
-    });
-    return () => { active = false; };
-  }, []);
-
-  useEffect(() => {
-    if (!user || activeView !== 'settings') return;
-    let active = true;
-    builderApi.billing().then((state) => {
-      if (active) setBilling(state);
-    }).catch((error) => {
-      if (active) setMessage(error instanceof Error ? error.message : 'Tsy afaka naka ny mombamomba ny billing.');
-    });
-    return () => { active = false; };
-  }, [user, activeView]);
-
-  async function submitAuth() {
-    setBusy(true);
-    try {
-      const account = authMode === 'register'
-        ? await builderApi.register(email, password)
-        : await builderApi.login(email, password);
-      setUser(account);
-      setPassword('');
-      await refreshProjects();
-      setMessage('Tafiditra soa aman-tsara. Vonona ny Builder raha voalamina amin’ny serveur ny Core.');
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Tsy nahomby ny fidirana.');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function signOut() {
-    try {
-      await builderApi.logout();
-      setUser(null);
-      setProjects([]);
-      setSelected(null);
-      setMessage('Nivoaka tamin’ny kaonty ianao.');
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Tsy afaka nivoaka.');
-    }
-  }
-
-  async function createProject() {
-    if (!prompt.trim() || !user || busy) return;
-    setBusy(true);
-    const description = prompt.trim();
-    const generationPrompt = appTarget === 'mobile' ? description + '\nTarget platform: mobile app (Expo React Native). Include the app-specific mobile source under mobile/ and keep the root web preview buildable.' : description;
-    setGenerationLog(['Manomana ny application…']);
-    setActiveView('builder');
-    setMessage('Mamorona ny application…');
-    let progressPoller: number | undefined;
-    try {
-      const project = await builderApi.createProject(description.slice(0, 120), description.slice(0, 2000));
-      progressPoller = window.setInterval(async () => {
-        try {
-          const status = await builderApi.generationStatus(project.id);
-          if (status.steps.length) setGenerationLog(status.steps.map((step) => step.message));
-        } catch {
-          // Keep the current progress visible if a single status poll fails.
-        }
-      }, 1000);
-      const generated = await builderApi.generateProject(project.id, generationPrompt);
-      if (progressPoller !== undefined) window.clearInterval(progressPoller);
-      const finalStatus = await builderApi.generationStatus(project.id).catch(() => null);
-      if (finalStatus?.steps.length) setGenerationLog(finalStatus.steps.map((step) => step.message));
-      else setGenerationLog((previous) => [...previous, 'VITA: voatahiry ny rakitra ary nahomby ny build.']);
-      await refreshProjects();
-      const storedFiles = (generated.project as ProjectWithFiles).files || [];
-      const previewHtml = storedFiles.find((file) => file.path === '__4ndev_preview.html')?.content;
-      setSelected({ ...(generated.project as ProjectWithFiles), files: generated.generatedFiles as ProjectFile[], previewHtml });
-      setPrompt('');
-      setModal(false);
-      setActiveView(generated.previewAvailable ? 'preview' : 'files');
-      setMessage('Vita ny application. Rakitra: ' + generated.generatedFiles.length + (generated.mode === 'free-template' ? '.' : '. Crédit nampiasaina: ' + (generated.creditsCharged ?? 10) + '.'));
-    } catch (error) {
-      if (progressPoller !== undefined) window.clearInterval(progressPoller);
-      const detail = error instanceof Error ? error.message : 'Tsy nahomby ny génération AI.';
-      setGenerationLog((previous) => [...previous, 'TSY TAFITA: ' + detail]);
-      setMessage(detail);
-      await refreshProjects().catch(() => {});
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function openProject(project: Project) {
-    try {
-      const full = await builderApi.getProject(project.id) as ProjectWithFiles;
-      setSelected(full);
-      setActiveView('files');
-      setMessage('Tetikasa sy rakitra nalaina avy amin’ny fitahirizana maharitra.');
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Tsy afaka nanokatra ilay tetikasa.');
-    }
-  }
-
-  return (
-    <>
-      <AppLayout activeView={activeView} currentPage={currentPage} isMobileSidebarOpen={mobile}
-        isSidebarCollapsed={collapsed} onChangeView={setActiveView}
-        onCloseMobileSidebar={() => setMobile(false)} onOpenMobileSidebar={() => setMobile(true)}
-        onToggleSidebar={() => setCollapsed((value) => !value)} onNewProject={() => setModal(true)}>
-        <div className="ai-builder-workspace">
-          <div className="workspace-header">
-            <div><span className="eyebrow">4N DEV CORE</span><h1>{currentPage.label}</h1><p>{t('AI Builder — kaonty manokana, Core no mitantana ny modely sy ny billing.')}</p></div>
-            <div className="workspace-status">{message}</div>
-          </div>
-
-          {!user ? (
-            <section className="workspace-card">
-              <h2>{authMode === 'register' ? 'Mamoròna kaonty AI Builder' : 'Midira amin’ny kaontinao'}</h2>
-              <p>{t('Ny kaonty Builder dia misaraka amin’ny Core Console. Ny Core sy ny modely dia tantanan’ny developer ao ambadika.')}</p>
-              <label>Email<input type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder={t('ianao@example.com')} /></label>
-              <label>Teny miafina<input type="password" autoComplete={authMode === 'register' ? 'new-password' : 'current-password'} value={password} onChange={(event) => setPassword(event.target.value)} placeholder={t('Farafahakeliny 12 tarehintsoratra')} /></label>
-              <button disabled={busy || !email.trim() || password.length < (authMode === 'register' ? 12 : 1)} onClick={submitAuth}>{busy ? 'Miandry…' : authMode === 'register' ? 'Mamorona kaonty' : 'Hiditra'}</button>
-              <button className="project-row" disabled={busy} onClick={() => setAuthMode(authMode === 'register' ? 'login' : 'register')}>{authMode === 'register' ? 'Efa manana kaonty? Hiditra' : 'Tsy mbola manana kaonty? Hisoratra anarana'}</button>
-            </section>
-          ) : (
-            <>
-              <div className="workspace-card">
-                <p>Kaonty: <strong>{user.email}</strong></p>
-                <button className="project-row" onClick={signOut}>{t('Hivoaka')}</button>
-              </div>
-
-              {generationLog.length > 0 && <section className="workspace-card generation-progress" aria-live="polite">
-                <h2>{busy ? 'Mandroso ny generation AI…' : 'Tatitra generation AI'}</h2>
-                <p>Ireo dingana ireo dia tatitra avy amin’ny serveur, havaozina isaky ny mandroso ny Core na ny build worker.</p>
-                <ol className="generation-log">{generationLog.map((line, index) => <li key={index} className={line.startsWith('VITA:') ? 'generation-log__done' : line.startsWith('TSY TAFITA:') ? 'generation-log__error' : ''}>{line}</li>)}</ol>
-                {busy && <div className="generation-progress__bar" role="progressbar" aria-label="Famoronana application mandeha"><span /></div>}
-                <div ref={logEndRef} />
-              </section>}
-
-              {activeView === 'dashboard' && <section className="workspace-grid">
-                <div className="workspace-card workspace-hero">
-                  <span className="eyebrow">{t('BUILD WITH AI')}</span><h2>{t('Farito ny tetikasanao.')}</h2>
-                  <p>Mamoròna application web na mobile. Hamarinin’ny Builder ny build web; raha mobile no safidy dia tehirizina miaraka aminy ny loharano Expo.</p>
-                  <label style={{ display: 'grid', gap: '8px', marginBottom: '12px' }}><span>Karazana application</span><select value={appTarget} onChange={(event) => setAppTarget(event.target.value as 'web' | 'mobile')} style={{ padding: '12px', borderRadius: '10px', border: '1px solid #dbe2ee', background: '#fff' }}><option value="web">Web application</option><option value="mobile">Application mobile (Expo / React Native)</option></select></label>
-                  <textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder={t('Ohatra: Mamoròna boutique misy catalogue, panier ary espace admin…')} />
-                  <button disabled={busy || !prompt.trim()} onClick={createProject}>{busy ? 'Mamorona application…' : 'Mamorona application'}</button>
-                </div>
-                <div className="workspace-card"><h3>{t('Tetikasa')}</h3><strong>{projects.length}</strong><p>{t('Voatahiry isaky ny kaonty.')}</p>
-                  {projects.slice(0, 5).map((project) => <button className="project-row" key={project.id} onClick={() => openProject(project)}>{project.name}</button>)}
-                </div>
-                <div className="workspace-card"><h3>{t('Core services')}</h3><p>Model catalogue · Core balance · Project storage</p><span className="core-badge">CORE MANAGED BY DEVELOPER</span></div>
-              </section>}
-
-              {activeView === 'builder' && <section className="workspace-card"><h2>AI Builder</h2><textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder={t('Farito ny zavatra tianao hatsangana…')} /><button disabled={busy || !prompt.trim()} onClick={createProject}>{busy ? 'Mitahiry…' : 'Mamorona sy mitahiry tetikasa'}</button><p>Farito ny application tianao hatsangana, dia tehirizo ao amin’ny tetikasanao.</p></section>}
-
-              {activeView === 'projects' && <section className="workspace-card"><h2>{t('Ny tetikasako')}</h2><p>Tehirizina ao amin’ny backend, ary ny tompony ihany no mahazo azy.</p>{projects.map((project) => <button className="project-row" key={project.id} onClick={() => openProject(project)}>{project.name}</button>)}{!projects.length && <p>{t('Tsy mbola misy tetikasa.')}</p>}</section>}
-
-              {activeView === 'preview' && <section className="workspace-card"><h2>{selected?.name || 'Preview application'}</h2>{selected?.previewHtml || selected?.files?.some((file) => file.path === '__4ndev_preview.html') ? <iframe title={'Preview ' + (selected?.name || 'application')} sandbox="allow-scripts" referrerPolicy="no-referrer" srcDoc={selected?.previewHtml || selected?.files?.find((file) => file.path === '__4ndev_preview.html')?.content} style={{ width: '100%', minHeight: '70vh', border: '1px solid #dbe2ee', borderRadius: '12px', background: '#fff' }} /> : <p>Tsy mbola misy preview voaorina ho an’ity tetikasa ity. Avereno ny generation rehefa misy ny build worker.</p>}<button onClick={() => setActiveView('files')}>Hijery ny rakitra</button></section>}
-
-              {activeView === 'files' && <section className="workspace-card"><h2>{selected?.name || 'Rakitra tetikasa'}</h2>{selected?.files?.filter((file) => file.path !== '__4ndev_preview.html').length ? selected.files.filter((file) => file.path !== '__4ndev_preview.html').map((file) => <div className="file-row" key={file.path}><code>{file.path}</code><span>{file.content.length} chars</span><details><summary>{t('Jereo ny kaody')}</summary><pre>{file.content}</pre></details></div>) : <p>{selected ? 'Mbola tsy misy rakitra voatahiry ao amin’ity tetikasa ity.' : 'Misafidiana tetikasa ao amin’ny Projects.'}</p>}</section>}
-
-              {activeView === 'help' && <section className="workspace-card"><h2>{currentPage.label === 'Help Center' ? currentPage.label : 'Help Center'}</h2><p>Fanampiana amin’ny kaonty, famoronana tetikasa, fitahirizana rakitra ary famahana hadisoana.</p><p>Raha tsy mandeha ny génération, jereo ny hafatra aseho eo ambony ary aza averina imbetsaka ny fangatahana raha misy mety handany crédit.</p></section>}
-
-              {activeView === 'settings' && <>
-                <section className="workspace-card">
-                  <h2>{t('Abonnement sy crédit')}</h2>
-                  <p>Misafidiana fandoavana isam-bolana na fandoavana 12 volana mialoha. Ny vidiny isan-taona dia misy fihenam-bidy raha oharina amin’ny fandoavana isam-bolana in-12.</p>
-                  <div className="project-actions">
-                    <button className={billingInterval === 'monthly' ? '' : 'project-row'} onClick={() => setBillingInterval('monthly')}>Volana 1</button>
-                    <button className={billingInterval === 'yearly' ? '' : 'project-row'} onClick={() => setBillingInterval('yearly')}>Taona 1 — misy fihenam-bidy</button>
-                  </div>
-                  {billing ? <>
-                    <div className="workspace-grid">
-                      {billing.plans.map((plan) => {
-                        const price = plan.pricesUsdCents[billingInterval];
-                        return <article className="workspace-card" key={plan.id}>
-                          <h3>{plan.id.toUpperCase()}</h3>
-                          <p><strong>${(price / 100).toFixed(2)} USD</strong> {billingInterval === 'monthly' ? '/ volana' : '/ 12 volana'}</p>
-                          {billingInterval === 'yearly' && plan.yearlySavingsUsdCents !== null && <p>Mitahiry ${(plan.yearlySavingsUsdCents / 100).toFixed(2)} USD isan-taona · mitovy amin’ny ${(plan.yearlyMonthlyEquivalentUsdCents / 100).toFixed(2)} USD/volana</p>}
-                          <p>Crédit omena isam-bolana: {plan.monthlyCredits}</p>
-                          {plan.prototypeOnly && <p>Famoronana maimaim-poana</p>}
-                        </article>;
-                      })}
-                    </div>
-                    <p>Fandoavam-bola sy renewal automatique: mbola tsy mandeha. Tsy mbola afaka mividy abonnement amin’ity efijery ity.</p>
-                    <p>Satan’ny crédit: {billing.creditsPolicy.status}. Tsy mbola ampiharina ny fanomezana sy fahataperan’ny crédit isam-bolana.</p>
-                    <p>Balance ankehitriny: {billing.creditsBalance} crédit.</p>
-                  </> : <p>Maka ny vidiny sy ny satan’ny abonnement…</p>}
-                </section>
-                <section className="workspace-card">
-                  <h2>{t('4N DEV Core')}</h2>
-                  <p>Ny modely sy ny Core API key dia tantanan’ny developer ao amin’ny serveur. Tsy mila mampiditra <code>4ndev_sk</code> ny mpampiasa, ary tsy aseho ao amin’ny navigateur ny lakile.</p>
-                  <p>Ny génération dia miasa rehefa voalamina ao amin’ny environment an’ny Builder ny <code>BUILDER_CORE_API_KEY</code>. Raha tsy mbola voalamina izany dia hampiseho hadisoana mazava ny backend.</p>
-                </section>
-              </>}
-
-              {!['dashboard', 'builder', 'projects', 'files', 'preview', 'settings', 'help'].includes(activeView) && <section className="workspace-card"><h2>{currentPage.label}</h2><p>Misafidiana tetikasa iray hanohizana.</p></section>}
-            </>
-          )}
-        </div>
-      </AppLayout>
-      <Modal isOpen={modal && Boolean(user)} onClose={() => setModal(false)} title="Tetikasa AI vaovao" description="Farito ny application tianao hatsangana. Ho voatahiry ao amin’ny tetikasanao ny rakitra.">
-        <textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder={t('Farito ny tetikasa…')} />
-        <button disabled={busy || !prompt.trim()} onClick={createProject}>{busy ? 'Mamorona application…' : 'Mamorona application'}</button>
-      </Modal>
-    </>
-  );
+import { useEffect, useMemo, useState } from 'react';
+import { Activity, ArrowDownToLine, ArrowRight, Bot, Check, ChevronDown, CircleHelp, Code2, CreditCard, ExternalLink, Eye, FileCode2, Folder, Globe2, Layers3, LoaderCircle, LogOut, Menu, MonitorSmartphone, Plus, Rocket, Search, Settings2, ShieldCheck, Smartphone, Sparkles, Terminal, WandSparkles, X, Zap } from 'lucide-react';
+type User={id:string;email:string}; type Project={id:string;name:string;description?:string;status?:string;created_at?:string;updated_at?:string}; type FileItem={path:string;content:string}; type Billing={creditsBalance:number;subscription?:{plan:string;status:string;billingInterval?:string;priceUsdCents?:number};plans?:Array<{id:string;pricesUsdCents:{monthly:number;yearly:number};monthlyCredits:number}>}; type View='build'|'projects'|'code'|'preview'|'billing'|'settings';
+const API=(import.meta.env.VITE_BUILDER_API_URL||window.location.origin).replace(/\/$/,'');
+const starters=[{icon:'✦',title:'SaaS dashboard',detail:'Analytics, teams, billing and settings',prompt:'Build a polished SaaS dashboard with analytics cards, charts, team management, settings, responsive layout and realistic sample data.'},{icon:'▦',title:'Online store',detail:'Product catalog and shopping cart',prompt:'Build a responsive online store with product search, categories, product details, cart, quantity controls and checkout summary.'},{icon:'✓',title:'Task manager',detail:'Projects, tasks and progress tracking',prompt:'Build a task management web app with task creation, editing, completion, filtering, due dates and local persistence.'},{icon:'◈',title:'Mobile companion',detail:'A native app for iOS and Android',prompt:'Build a native Expo React Native mobile app for personal task management with task creation, editing, completion, filtering and local persistence.'}];
+async function request<T>(path:string,init:RequestInit={}):Promise<T>{const response=await fetch(`${API}${path}`,{...init,credentials:'include',headers:{Accept:'application/json',...(init.body?{'Content-Type':'application/json'}:{}),...init.headers}});const data=await response.json().catch(()=>({}));if(!response.ok||data?.success!==true)throw new Error(data?.error||`Request failed (${response.status})`);return data as T}
+function App(){
+ const [view,setView]=useState<View>('build'),[user,setUser]=useState<User|null>(null),[email,setEmail]=useState(''),[password,setPassword]=useState(''),[authMode,setAuthMode]=useState<'login'|'register'>('register'),[projects,setProjects]=useState<Project[]>([]),[selected,setSelected]=useState<Project|null>(null),[files,setFiles]=useState<FileItem[]>([]),[activeFile,setActiveFile]=useState(''),[prompt,setPrompt]=useState(''),[target,setTarget]=useState<'web'|'mobile'>('web'),[busy,setBusy]=useState(false),[busyMode,setBusyMode]=useState<'premium'|'prototype'|null>(null),[notice,setNotice]=useState(''),[error,setError]=useState(''),[billing,setBilling]=useState<Billing|null>(null),[coreKey,setCoreKey]=useState(''),[sidebarOpen,setSidebarOpen]=useState(false),[search,setSearch]=useState('');
+ const currentFile=files.find(f=>f.path===activeFile)||files[0],filteredProjects=useMemo(()=>projects.filter(p=>p.name.toLowerCase().includes(search.toLowerCase())),[projects,search]);
+ async function loadProjects(){const r=await request<{success:true;projects:Project[]}>('/api/projects');setProjects(r.projects||[])}
+ async function loadProject(id:string){const r=await request<{success:true;project:Project&{files?:FileItem[]}}>(`/api/projects/${id}`);setSelected(r.project);setFiles(r.project.files||[]);setActiveFile(r.project.files?.[0]?.path||'');setView('code')}
+ async function loadBilling(){const r=await request<{success:true;billing:Billing}>('/api/billing');setBilling(r.billing)}
+ useEffect(()=>{let alive=true;request<{success:true;user:User}>('/api/auth/me').then(async r=>{if(!alive)return;setUser(r.user);try{const p=await request<{success:true;projects:Project[]}>('/api/projects');if(alive)setProjects(p.projects||[])}catch(e){if(alive)setError(e instanceof Error?e.message:'Could not load projects.')}}).catch(()=>{});return()=>{alive=false}},[]);
+ async function authenticate(){setBusy(true);setError('');setNotice('');try{const r=await request<{success:true;user:User}>(authMode==='register'?'/api/auth/register':'/api/auth/login',{method:'POST',body:JSON.stringify({email,password})});setUser(r.user);setPassword('');await loadProjects();setNotice('Welcome to your workspace.')}catch(e){setError(e instanceof Error?e.message:'Authentication failed.')}finally{setBusy(false)}}
+ async function signOut(){try{await request('/api/auth/logout',{method:'POST'})}catch{}setUser(null);setProjects([]);setSelected(null);setFiles([]);setView('build')}
+ async function generate(mode:'premium'|'prototype'){const p=prompt.trim();if(!p){setError('Describe the app you want to create first.');return}if(!user){setError('Sign in to save and generate your application.');return}setBusy(true);setBusyMode(mode);setError('');setNotice('');try{const name=p.split(/[.!?\n]/)[0].trim().slice(0,56)||'My new app';const c=await request<{success:true;project:Project}>('/api/projects',{method:'POST',body:JSON.stringify({name,description:p})});const endpoint=mode==='premium'? `/api/projects/${c.project.id}/generate`:`/api/projects/${c.project.id}/prototype`;const r=await request<{success:true;project?:Project&{files?:FileItem[]};generatedFiles?:FileItem[];creditsCharged?:number}>(endpoint,{method:'POST',body:JSON.stringify({prompt:`Target platform: ${target==='mobile'?'mobile app using Expo and React Native':'web app using React, TypeScript and Vite'}. User requirements: ${p}`})});const output=r.generatedFiles||r.project?.files||[];setSelected(r.project||c.project);setFiles(output);setActiveFile(output[0]?.path||'');await loadProjects();setView(output.length?'code':'preview');setNotice(mode==='premium'?`Generation complete. ${r.creditsCharged??10} credits used.`:'Free prototype created. Upgrade when you are ready for full AI generation.');if(mode==='premium')try{await loadBilling()}catch{}}catch(e){setError(e instanceof Error?e.message:'Generation failed. Check your connection and try again.')}finally{setBusy(false);setBusyMode(null)}}
+ async function connectCore(){setError('');setNotice('');try{await request('/api/core/connect',{method:'POST',body:JSON.stringify({apiKey:coreKey})});setCoreKey('');setNotice('4N DEV Core connection saved securely.')}catch(e){setError(e instanceof Error?e.message:'Could not connect to Core.')}}
+ async function openBilling(){setView('billing');setError('');try{await loadBilling()}catch(e){setError(e instanceof Error?e.message:'Could not load billing.')}}
+ if(!user)return <main className="auth-screen"><section className="auth-card"><div className="brand-lockup"><div className="brand-mark"><Sparkles size={22}/></div><div><b>4N DEV</b><span>AI APP STUDIO</span></div></div><div className="auth-eyebrow"><span className="live-dot"/> YOUR IDEA, BUILT WITH AI</div><h1>Turn your idea into<br/><span>an application.</span></h1><p className="auth-copy">Create web experiences and native mobile apps with a developer-managed AI pipeline powered by 4N DEV Core.</p><div className="auth-feature"><span><Globe2 size={17}/></span><div><b>Web + Mobile</b><small>React, Vite, Expo and React Native</small></div></div><div className="auth-feature"><span><ShieldCheck size={17}/></span><div><b>Your workspace</b><small>Private projects and secure Core connection</small></div></div><form className="auth-form" onSubmit={e=>{e.preventDefault();void authenticate()}}><div className="auth-tabs"><button type="button" className={authMode==='register'?'active':''} onClick={()=>setAuthMode('register')}>Create account</button><button type="button" className={authMode==='login'?'active':''} onClick={()=>setAuthMode('login')}>Sign in</button></div><label>Email address<input type="email" autoComplete="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@example.com" required/></label><label>Password<input type="password" autoComplete={authMode==='register'?'new-password':'current-password'} value={password} onChange={e=>setPassword(e.target.value)} placeholder={authMode==='register'?'At least 12 characters':'Your password'} minLength={authMode==='register'?12:1} required/></label>{error&&<div className="alert error"><X size={16}/>{error}</div>}<button className="primary-button wide" disabled={busy}>{busy?<LoaderCircle className="spin" size={18}/>:<ArrowRight size={18}/>}{authMode==='register'?'Create your workspace':'Sign in to workspace'}</button></form><div className="auth-foot"><ShieldCheck size={14}/>Your projects are private to your account.</div></section><aside className="auth-side"><div className="side-kicker">BUILT FOR PEOPLE WHO BUILD</div><h2>From prompt<br/>to <em>product.</em></h2><p>A focused workspace for turning ambitious ideas into real software.</p><div className="floating-window"><div className="window-bar"><i/><i/><i/><span>your-next-big-idea</span></div><div className="window-content"><div className="code-line long"/><div className="code-line mid"/><div className="code-line short"/><div className="window-success"><Check size={15}/>Project structure ready</div></div></div><div className="side-bottom"><span><span className="live-dot"/> CORE PIPELINE</span><span>WEB · MOBILE · AI</span></div></aside></main>;
+ const label:Record<View,string>={build:'Build with AI',projects:'My projects',code:'Code editor',preview:'Preview',billing:'Plan & credits',settings:'Settings'};
+ return <div className="app-shell"><aside className={`sidebar ${sidebarOpen?'sidebar-open':''}`}><div className="sidebar-brand"><div className="brand-mark"><Sparkles size={20}/></div><div><b>4N DEV</b><span>AI APP STUDIO</span></div><button className="icon-button mobile-close" onClick={()=>setSidebarOpen(false)}><X size={18}/></button></div><button className="workspace-switch"><span className="workspace-avatar">{user.email.slice(0,1).toUpperCase()}</span><span className="workspace-copy"><b>Personal workspace</b><small>{user.email}</small></span><ChevronDown size={15}/></button><div className="nav-caption">WORKSPACE</div><nav className="main-nav"><button className={view==='build'?'nav-item active':'nav-item'} onClick={()=>{setView('build');setSidebarOpen(false)}}><WandSparkles size={18}/>Build with AI<kbd>⌘ K</kbd></button><button className={view==='projects'?'nav-item active':'nav-item'} onClick={()=>{setView('projects');setSidebarOpen(false)}}><Layers3 size={18}/>My projects<span className="nav-count">{projects.length}</span></button><button className={view==='code'?'nav-item active':'nav-item'} onClick={()=>setView('code')}><Code2 size={18}/>Code editor</button><button className={view==='preview'?'nav-item active':'nav-item'} onClick={()=>setView('preview')}><Eye size={18}/>Preview</button></nav><div className="nav-caption second-caption">MANAGE</div><nav className="main-nav"><button className={view==='billing'?'nav-item active':'nav-item'} onClick={()=>void openBilling()}><CreditCard size={18}/>Plan & credits</button><button className={view==='settings'?'nav-item active':'nav-item'} onClick={()=>{setView('settings');setError('')}}><Settings2 size={18}/>Settings</button></nav><div className="sidebar-bottom"><div className="core-status"><span className="status-icon"><Zap size={17}/></span><div><b>4N DEV Core</b><small><span className="live-dot"/>Engine managed by developer</small></div><span className="status-check"><Check size={14}/></span></div><button className="help-link" onClick={()=>setNotice('Contact 4N DEV support with the exact error shown above.')}><CircleHelp size={16}/>Help & support<ExternalLink size={13}/></button><button className="account-button" onClick={()=>void signOut()}><span className="account-avatar">{user.email.slice(0,1).toUpperCase()}</span><span><b>{user.email}</b><small>Personal account</small></span><LogOut size={16}/></button></div></aside>{sidebarOpen&&<button className="mobile-scrim" onClick={()=>setSidebarOpen(false)} aria-label="Close navigation"/>}<main className="main-area"><header className="topbar"><div className="topbar-left"><button className="icon-button mobile-menu" onClick={()=>setSidebarOpen(true)}><Menu size={20}/></button><div className="breadcrumb"><span>Workspace</span><span className="crumb-slash">/</span><b>{label[view]}</b></div></div><div className="topbar-actions"><span className="top-status"><span className="live-dot"/>Core connected</span><button className="credits-pill" onClick={()=>void openBilling()}><Zap size={15}/>{billing?billing.creditsBalance:'—'} credits</button><button className="top-avatar" title={user.email}>{user.email.slice(0,1).toUpperCase()}</button></div></header><div className="content-wrap">{(error||notice)&&<div className={`alert ${error?'error':'success'}`}>{error?<X size={17}/>:<Check size={17}/>}<span>{error||notice}</span><button onClick={()=>{setError('');setNotice('')}}><X size={15}/></button></div>}
+ {view==='build'&&<section className="build-view"><div className="hero-heading"><div className="eyebrow"><Sparkles size={14}/>THE AI APP BUILDER</div><h1>What will you <span>build today?</span></h1><p>Describe your idea. Your AI team plans it, builds the files, and prepares your project.</p></div><div className="builder-composer"><div className="composer-top"><span className="composer-label"><span className="composer-pulse"/>NEW PROJECT</span><span className="composer-private"><ShieldCheck size={14}/>Private to you</span></div><textarea value={prompt} onChange={e=>setPrompt(e.target.value)} placeholder={target==='web'?'Describe your web app — its purpose, pages, features and visual style…':'Describe your native mobile app — screens, features, navigation and data…'} rows={5} disabled={busy}/><div className="composer-divider"/><div className="composer-footer"><div className="target-switch"><button className={target==='web'?'selected':''} onClick={()=>setTarget('web')}><Globe2 size={16}/>Web app</button><button className={target==='mobile'?'selected':''} onClick={()=>setTarget('mobile')}><Smartphone size={16}/>Mobile app</button></div><div className="composer-actions"><button className="prototype-button" onClick={()=>void generate('prototype')} disabled={busy||!prompt.trim()}><Eye size={16}/>Free prototype</button><button className="primary-button" onClick={()=>void generate('premium')} disabled={busy||!prompt.trim()}>{busy?<LoaderCircle className="spin" size={17}/>:<Sparkles size={17}/>}{busy?'Building…':'Build with AI'}<ArrowRight size={16}/></button></div></div>{busy&&<div className="build-progress"><div className="progress-track"><span/></div><div><LoaderCircle className="spin" size={14}/>{busyMode==='prototype'?'Preparing a starter prototype…':'Planning, generating and validating your app…'}</div></div>}<div className="composer-note"><Zap size={13}/>Premium generation uses your active plan and credits. Model selection is managed by 4N DEV.</div></div><div className="section-heading"><div><h2>Start with an idea</h2><p>Choose a direction and customize the prompt.</p></div><span className="quiet-label">SUGGESTED STARTERS</span></div><div className="starter-grid">{starters.map(s=><button className="starter-card" key={s.title} onClick={()=>{setPrompt(s.prompt);setTarget(s.title==='Mobile companion'?'mobile':'web')}}><span className="starter-icon">{s.icon}</span><span className="starter-text"><b>{s.title}</b><small>{s.detail}</small></span><ArrowRight size={16} className="starter-arrow"/></button>)}</div><div className="trust-strip"><div><ShieldCheck size={17}/><span><b>Private by default</b><small>Your source stays in your workspace</small></span></div><div><Bot size={17}/><span><b>Developer-managed AI</b><small>4N DEV Core orchestrates models</small></span></div><div><Rocket size={17}/><span><b>Build toward launch</b><small>Files, validation and export workflow</small></span></div></div></section>}
+ {view==='projects'&&<section className="page-view"><div className="page-title-row"><div><div className="eyebrow">YOUR WORKSPACE</div><h1>My projects</h1><p>Every idea, organized in one place.</p></div><button className="primary-button" onClick={()=>setView('build')}><Plus size={17}/>New project</button></div><div className="project-toolbar"><div className="search-field"><Search size={16}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search projects…"/></div><span>{filteredProjects.length} projects</span></div>{filteredProjects.length?<div className="project-grid">{filteredProjects.map(p=><button className="project-card" key={p.id} onClick={()=>void loadProject(p.id)}><div className="project-card-top"><span className="project-icon"><Folder size={20}/></span><span className="project-status">{p.status||'Saved'}</span></div><b>{p.name}</b><p>{p.description||'Your application project'}</p><div className="project-card-bottom"><span>{p.updated_at?new Date(p.updated_at).toLocaleDateString():'Workspace project'}</span><ArrowRight size={16}/></div></button>)}</div>:<div className="empty-state"><div className="empty-icon"><Layers3 size={26}/></div><h3>Your next big idea starts here</h3><p>Create your first project from a prompt. Your saved projects will appear here.</p><button className="primary-button" onClick={()=>setView('build')}><Sparkles size={16}/>Build your first app</button></div>}</section>}
+ {view==='code'&&<section className="page-view"><div className="page-title-row"><div><div className="eyebrow">SOURCE WORKSPACE</div><h1>{selected?.name||'Code editor'}</h1><p>{files.length?`${files.length} generated files in this project`:'Select a project to inspect its files.'}</p></div><button className="secondary-button" onClick={()=>setView('projects')}><Folder size={16}/>Open projects</button></div>{files.length?<div className="code-workspace"><aside className="file-tree"><div className="file-tree-title"><Folder size={15}/>FILES <span>{files.length}</span></div>{files.map(f=><button key={f.path} className={activeFile===f.path?'file-row active':'file-row'} onClick={()=>setActiveFile(f.path)}><FileCode2 size={15}/><span>{f.path}</span></button>)}</aside><div className="code-panel"><div className="code-panel-head"><span><Code2 size={15}/>{currentFile?.path||'Select a file'}</span><button className="icon-button" title="Download file" onClick={()=>{if(currentFile){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([currentFile.content],{type:'text/plain'}));a.download=currentFile.path.split('/').pop()||'source.txt';a.click();URL.revokeObjectURL(a.href)}}}><ArrowDownToLine size={16}/></button></div><pre className="code-content"><code>{currentFile?.content||'No file selected.'}</code></pre></div></div>:<div className="empty-state"><div className="empty-icon"><Code2 size={26}/></div><h3>No source files loaded</h3><p>Choose a saved project, or generate an app from the Build with AI page.</p><button className="primary-button" onClick={()=>setView('projects')}>Browse projects<ArrowRight size={16}/></button></div>}</section>}
+ {view==='preview'&&<section className="page-view"><div className="page-title-row"><div><div className="eyebrow">LIVE WORKSPACE</div><h1>Preview your app</h1><p>Inspect generated output and continue iterating.</p></div><button className="secondary-button" onClick={()=>setView('code')}><Code2 size={16}/>View source</button></div><div className="preview-stage"><div className="preview-browser"><div className="browser-chrome"><div><i/><i/><i/></div><span>{selected?.name||'your-app'}.4ndev.dev</span><ExternalLink size={14}/></div><div className="preview-canvas"><div className="preview-ready"><div className="preview-check"><Check size={23}/></div><h2>{files.length?'Your project files are ready':'Your canvas is waiting'}</h2><p>{files.length?`${files.length} files generated for ${selected?.name||'your app'}. Inspect or download the source. A live deployment preview requires the build and hosting stages to be connected.`:'Generate a web or mobile project to begin reviewing its output here.'}</p><button className="primary-button" onClick={()=>setView(files.length?'code':'build')}>{files.length?<><Code2 size={16}/>Inspect generated files</>:<><Sparkles size={16}/>Create an app</>}</button></div></div></div></div></section>}
+ {view==='billing'&&<section className="page-view"><div className="page-title-row"><div><div className="eyebrow">PLAN & USAGE</div><h1>Plans and credits</h1><p>Understand your subscription before starting a premium build.</p></div><span className="billing-lock"><ShieldCheck size={15}/>Secure billing</span></div><div className="billing-summary-grid"><div className="billing-summary"><span className="summary-icon"><Zap size={18}/></span><small>AVAILABLE CREDITS</small><strong>{billing?billing.creditsBalance.toLocaleString():'—'}</strong><p>10 credits per premium generation</p></div><div className="billing-summary"><span className="summary-icon"><CreditCard size={18}/></span><small>CURRENT PLAN</small><strong>{billing?.subscription?.plan||'Not loaded'}</strong><p>{billing?.subscription?.status||'Subscription status unavailable'}</p></div><div className="billing-summary"><span className="summary-icon"><Activity size={18}/></span><small>AI ENGINE</small><strong>4N DEV Core</strong><p>Models selected by the developer</p></div></div><div className="billing-info"><ShieldCheck size={20}/><div><b>Premium generation requires an active paid plan and sufficient credits.</b><p>Builder credits and Core usage are separate. If Core has no available balance, generation may be rejected by Core. Read the exact error before adding funds.</p></div></div><div className="section-heading"><div><h2>Available plans</h2><p>Pricing returned by the billing service.</p></div><button className="secondary-button" onClick={()=>void loadBilling()}><Activity size={15}/>Refresh billing</button></div><div className="plan-grid">{billing?.plans?.map(p=><div className="plan-card" key={p.id}><span className="plan-name">{p.id}</span><div className="plan-price">${(p.pricesUsdCents.monthly/100).toFixed(2)}<small>/month</small></div><p>{p.monthlyCredits} credits per month</p><div className="plan-foot"><Check size={15}/>Backend-configured plan</div></div>)||<div className="empty-inline">Loading the billing catalogue…</div>}</div></section>}
+ {view==='settings'&&<section className="page-view"><div className="page-title-row"><div><div className="eyebrow">WORKSPACE CONTROL</div><h1>Settings</h1><p>Manage your account and private AI connection.</p></div></div><div className="settings-card"><div className="settings-icon"><ShieldCheck size={20}/></div><div className="settings-content"><h2>4N DEV Core connection</h2><p>Connect your Core credential if your workspace requires one. The key is sent to the backend; never store it in browser storage or source files.</p><form onSubmit={e=>{e.preventDefault();void connectCore()}}><label>Core API key<input type="password" autoComplete="off" value={coreKey} onChange={e=>setCoreKey(e.target.value)} placeholder="Enter your 4N DEV Core key"/></label><button className="primary-button" disabled={!coreKey.trim()}><ShieldCheck size={16}/>Save secure connection</button></form><div className="settings-hint"><ShieldCheck size={15}/>Never paste your API key into the project prompt or source files.</div></div></div><div className="settings-card"><div className="settings-icon"><CreditCard size={20}/></div><div className="settings-content"><h2>Subscription and credits</h2><p>Review the active plan and available Builder credits.</p><button className="secondary-button" onClick={()=>void openBilling()}>View billing<ArrowRight size={15}/></button></div></div><div className="settings-card"><div className="settings-icon"><Terminal size={20}/></div><div className="settings-content"><h2>Developer-managed model pipeline</h2><p>4N Chat Naya and 4N Code Nael models are orchestrated by the platform. Model selection is hidden from end users.</p><div className="model-tags"><span>4N Chat Naya 5.6</span><span>4N Chat Naya 6</span><span>4N Code Nael 5.6</span><span>4N Code Nael 6.1</span></div></div></div></section>}
+ </div><footer className="app-footer"><span>© 2026 4N DEV · AI APP STUDIO</span><span><span className="live-dot"/>Systems connected</span></footer></main></div>
 }
-
 export default App;
