@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { validateBuild } from './build-worker-client.js';
+import { ensureMobileProject } from './mobile-project.js';
 const COOKIE = 'builder_session';
 const GENERATION_CREDIT_COST = 10;
 const progressByProject = new Map();
@@ -142,7 +143,7 @@ export function createGenerationApi({store,fetchImpl=globalThis.fetch,coreApiUrl
     'Generated files:',JSON.stringify(JSON.parse(result.data?.output?.trim()||'{}'))
    ].join('\n')});
    setProgress(user.id,m[1],'Manamarina ny rakitra sy ny fiarovana azy.');
-   stage='parse-generated-files';let files;try{files=parseFiles(review.data?.output);}catch(e){logGenerationError({stage,error:e,jobId:creditJobId,projectId:m[1]});setProgress(user.id,m[1],'TSY TAFITA: '+safeDiagnosticMessage(e),'failed');if(!await refundFailedGeneration())return refundPendingResponse();return send(res,502,{success:false,error:safeDiagnosticMessage(e),jobId:creditJobId,usage:result.usage});}
+   stage='parse-generated-files';let files;try{files=parseFiles(review.data?.output);files=ensureMobileProject(files,prompt,project.name);}catch(e){logGenerationError({stage,error:e,jobId:creditJobId,projectId:m[1]});setProgress(user.id,m[1],'TSY TAFITA: '+safeDiagnosticMessage(e),'failed');if(!await refundFailedGeneration())return refundPendingResponse();return send(res,502,{success:false,error:safeDiagnosticMessage(e),jobId:creditJobId,usage:result.usage});}
    setProgress(user.id,m[1],'Manangana sy mitsapa ny application.');
    stage='isolated-build-validation';let buildResult;try{buildResult=await buildValidator(files);}catch(e){logGenerationError({stage,error:e,jobId:creditJobId,projectId:m[1]});setProgress(user.id,m[1],'TSY TAFITA: tsy nahomby ny build: '+safeDiagnosticMessage(e),'failed');if(!await refundFailedGeneration())return refundPendingResponse();return send(res,e.statusCode||422,{success:false,error:'Generated app failed isolated build validation: '+safeDiagnosticMessage(e),jobId:creditJobId,usage:result.usage});}
    stage='save-generated-files';setProgress(user.id,m[1],'Nahomby ny fanamarinana; mitahiry ny application.');
