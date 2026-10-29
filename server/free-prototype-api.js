@@ -155,21 +155,9 @@ export function createFreePrototypeApi({ store, buildValidator = async () => ({ 
     if (!match || req.method !== 'POST') return false;
     const user = await store.getUserForSession(cookieValue(req.headers.cookie));
     if (!user) return send(res, 401, { success: false, error: 'Authentication required.' });
-    // The single /generate endpoint chooses the route server-side. Free or inactive
-    // subscriptions use the local template generator; only an active paid plan
-    // falls through to the Core generation handler.
-    if (match[2].toLowerCase() === 'generate') {
-      if (typeof store.getBillingState !== 'function') {
-        return send(res, 503, { success: false, error: 'Subscription status is unavailable.' });
-      }
-      const billing = await store.getBillingState(user.id);
-      const subscription = billing?.subscription;
-      const paidAndActive = subscription
-        && subscription.plan !== 'free'
-        && subscription.status === 'active'
-        && Date.parse(subscription.periodEnd) > Date.now();
-      if (paidAndActive) return false;
-    }
+    // /prototype is the explicit local template path. /generate always falls
+    // through to the Core-backed pipeline so Core alone owns AI billing and credits.
+    if (match[2].toLowerCase() === 'generate') return false;
     try {
       const chunks = [];
       let size = 0;
