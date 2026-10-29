@@ -2,7 +2,7 @@ name: AI Builder Build
 
 on:
   push:
-    branches: [main, feat/builder-backend-foundation]
+    branches: [main, feat/builder-backend-foundation, rebuild/base44-style-clean-v1]
   pull_request:
   workflow_dispatch:
 
