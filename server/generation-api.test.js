@@ -94,6 +94,10 @@ test('requires a connected Core key when no server key is configured', async t =
   const base = 'http://127.0.0.1:' + server.address().port;
   const auth = await fetch(base + '/api/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'nokey@example.test', password: 'a-long-test-password-123' }) });
   const cookie = auth.headers.get('set-cookie').split(';')[0];
+  const user = await store.getUserForSession(cookie.split('=')[1]);
+  const periodStart = new Date();
+  const periodEnd = new Date(periodStart); periodEnd.setUTCFullYear(periodEnd.getUTCFullYear() + 1);
+  await store.recordSubscription({ userId: user.id, plan: 'starter', billingInterval: '12_months', status: 'active', periodStart, periodEnd });
   const p = await fetch(base + '/api/projects', { method: 'POST', headers: { Cookie: cookie, 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'No key project' }) });
   const project = (await p.json()).project;
   const response = await fetch(base + '/api/projects/' + project.id + '/generate', { method: 'POST', headers: { Cookie: cookie, 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: 'Build an app' }) });
