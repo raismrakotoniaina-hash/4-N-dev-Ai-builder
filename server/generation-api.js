@@ -69,7 +69,9 @@ export function createGenerationApi({store,fetchImpl=globalThis.fetch,coreApiUrl
   }
   const m=url.pathname.match(/^\/api\/projects\/([0-9a-f-]{36})\/generate$/i);if(!m||req.method!=='POST')return false;
   const user=await store.getUserForSession(cookieValue(req.headers.cookie));if(!user)return send(res,401,{success:false,error:'Authentication required.'});
-  const billingState=await store.getBillingState(user.id);
+  let billingState;
+  try { billingState=await store.getBillingState(user.id); }
+  catch { return send(res,503,{success:false,error:'Builder subscription status is temporarily unavailable.'}); }
   const subscription=billingState?.subscription;
   if(!subscription||subscription.plan==='free'||subscription.status!=='active'||!Number.isFinite(Date.parse(subscription.periodEnd))||Date.parse(subscription.periodEnd)<=Date.now()){
    return send(res,403,{success:false,error:'An active paid Builder plan is required for AI generation. Free accounts can create local prototypes.'});
