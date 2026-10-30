@@ -26,11 +26,12 @@ test('applies Builder migrations transactionally and records applied names', asy
     }
   };
   const first = await runMigrations(pool);
-  assert.deepEqual(first, ['001_initial_builder_schema.sql', '002_builder_billing_credits.sql']);
+  assert.deepEqual(first, ['001_initial_builder_schema.sql', '002_builder_billing_credits.sql', '003_builder_billing_durations.sql']);
   assert.ok(executed.some((sql) => sql.includes('CREATE TABLE IF NOT EXISTS builder_users')));
   assert.ok(executed.some((sql) => sql.includes('CREATE TABLE IF NOT EXISTS builder_project_files')));
   assert.ok(executed.some((sql) => sql.includes('CREATE TABLE IF NOT EXISTS builder_subscriptions')));
   assert.ok(executed.some((sql) => sql.includes('CREATE TABLE IF NOT EXISTS builder_credit_ledger')));
+  assert.ok(executed.some((sql) => sql.includes("WHEN billing_interval = 'monthly' THEN '1_month'")));
   assert.ok(executed.some((sql) => sql === 'BEGIN'));
   assert.ok(executed.some((sql) => sql === 'COMMIT'));
   const second = await runMigrations(pool);
