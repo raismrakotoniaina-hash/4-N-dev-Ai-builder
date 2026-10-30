@@ -99,7 +99,7 @@ export default function App() {
     event.preventDefault(); setBusy(true); setError('');
     try {
       const r = await api<{ user: User }>('/api/auth/' + authMode, { method: 'POST', body: JSON.stringify({ email, password }) });
-      setUser(r.user); await Promise.all([refreshProjects(), refreshCoreStatus()]); setNotice('Welcome to your workspace.');
+      setUser(r.user); await Promise.all([refreshProjects(), refreshCoreStatus(), refreshBilling()]); setNotice('Welcome to your workspace.');
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not sign in.'); }
     finally { setBusy(false); }
   }
