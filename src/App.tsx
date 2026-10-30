@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ArrowRight, CheckCircle2, Code2, FolderOpen, LoaderCircle, LogOut, Monitor, Plus, Settings, Smartphone, Sparkles, Terminal, X } from 'lucide-react';
 
 type User = { id: string; email: string };
+type BillingState = { subscription: { plan: 'free' | 'starter' | 'pro' | 'business'; status: string; periodEnd: string | null } };
 type Project = { id: string; name: string; description?: string; status?: string; updated_at?: string; files?: FileItem[] };
 type FileItem = { path: string; content: string };
 type Mode = 'web' | 'mobile';
@@ -24,6 +25,7 @@ export default function App() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [projects, setProjects] = useState<Project[]>([]);
+  const [billing, setBilling] = useState<BillingState | null>(null);
   const [project, setProject] = useState<Project | null>(null);
   const [files, setFiles] = useState<FileItem[]>([]);
   const [activeFile, setActiveFile] = useState('');
@@ -70,6 +72,10 @@ export default function App() {
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not disconnect Core.'); }
     finally { setCoreBusy(false); }
   }
+  async function refreshBilling() {
+    const result = await api<{ billing: BillingState }>('/api/billing');
+    setBilling(result.billing);
+  }
   async function refreshProjects() {
     const result = await api<{ projects: Project[] }>('/api/projects');
     setProjects(result.projects || []);
@@ -86,14 +92,14 @@ export default function App() {
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not open project.'); }
   }
   useEffect(() => {
-    api<{ user: User }>('/api/auth/me').then(r => { setUser(r.user); return Promise.all([refreshProjects(), refreshCoreStatus()]); })
+    api<{ user: User }>('/api/auth/me').then(r => { setUser(r.user); return Promise.all([refreshProjects(), refreshCoreStatus(), refreshBilling()]); })
       .catch(() => setUser(null)).finally(() => setLoading(false));
   }, []);
   async function authenticate(event: React.FormEvent) {
     event.preventDefault(); setBusy(true); setError('');
     try {
       const r = await api<{ user: User }>('/api/auth/' + authMode, { method: 'POST', body: JSON.stringify({ email, password }) });
-      setUser(r.user); await Promise.all([refreshProjects(), refreshCoreStatus()]); setNotice('Welcome to your workspace.');
+      setUser(r.user); await Promise.all([refreshProjects(), refreshCoreStatus(), refreshBilling()]); setNotice('Welcome to your workspace.');
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not sign in.'); }
     finally { setBusy(false); }
   }
@@ -112,10 +118,11 @@ export default function App() {
         active = created.project; setProject(active);
       }
       const fullPrompt = 'TARGET PLATFORM: ' + (target === 'mobile' ? 'MOBILE. Generate a native Expo React Native app for Android and iOS in the mobile/ directory.' : 'WEB. Generate a responsive React + TypeScript + Vite web app.') + '\n' + brief;
-      const result = await api<{ project: Project; usage?: { charged_usd?: number } }>('/api/projects/' + active.id + '/generate', { method: 'POST', body: JSON.stringify({ prompt: fullPrompt }) });
+      const endpoint = billing?.subscription.plan === 'free' ? 'prototype' : 'generate';
+      const result = await api<{ project: Project; usage?: { charged_usd?: number } }>('/api/projects/' + active.id + '/' + endpoint, { method: 'POST', body: JSON.stringify({ prompt: fullPrompt }) });
       const generated = result.project.files || [];
       setFiles(generated); setActiveFile(generated[0]?.path || ''); setProject(result.project); await refreshProjects(); setScreen('code');
-      setNotice('Generation and isolated build validation completed.');
+      setNotice(endpoint === 'prototype' ? 'Free prototype created and validated locally. No Core credits were used.' : 'AI generation and isolated build validation completed. Core handles AI billing.');
     } catch (e) { setError(e instanceof Error ? e.message : 'Generation failed.'); }
     finally { setBusy(false); }
   }

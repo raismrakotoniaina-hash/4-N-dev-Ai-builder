@@ -15,7 +15,7 @@ function coreResponse(service, model) {
   const data = service === 'chat' ? { message: { content: 'A responsive app with clear pages and validation.' } } : { output: JSON.stringify({ files: goodFiles }) };
   return new Response(JSON.stringify({ success: true, service, model, data, usage: { charged_usd: 0.01, currency: 'USD' } }), { status: 200 });
 }
-async function setup(t, fetchImpl, buildValidator = async () => ({ success: true }), coreApiKey) {
+async function setup(t, fetchImpl, buildValidator = async () => ({ success: true }), coreApiKey, plan = 'starter') {
   const dir = await mkdtemp(join(tmpdir(), '4n-generation-core-billing-'));
   const store = createPersistence({ filePath: join(dir, 'state.json'), encryptionKey: 'test-encryption-key-that-is-at-least-32-bytes' });
   const server = createBuilderServer({ store, fetchImpl, buildValidator, coreApiKey });
@@ -26,6 +26,12 @@ async function setup(t, fetchImpl, buildValidator = async () => ({ success: true
   assert.equal(auth.status, 201);
   const cookie = auth.headers.get('set-cookie').split(';')[0];
   const user = await store.getUserForSession(cookie.split('=')[1]);
+  if (plan !== 'free') {
+    const periodStart = new Date();
+    const periodEnd = new Date(periodStart);
+    periodEnd.setUTCFullYear(periodEnd.getUTCFullYear() + 1);
+    await store.recordSubscription({ userId: user.id, plan, billingInterval: '12_months', status: 'active', periodStart, periodEnd });
+  }
   await store.connectCoreKey(user.id, API_KEY);
   const created = await fetch(base + '/api/projects', { method: 'POST', headers: { Cookie: cookie, 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'Test app' }) });
   return { base, cookie, store, user, project: (await created.json()).project };
@@ -46,6 +52,19 @@ test('generation uses four server-selected Core models and saves validated files
   assert.equal(result.creditsCharged, undefined);
   assert.equal((await store.getProject(user.id, project.id)).files.length, 2);
 });
+test('Free accounts are denied Core generation before any upstream request', async t => {
+  let coreCalls = 0;
+  const { base, cookie, project } = await setup(t, async () => { coreCalls++; throw new Error('Core must not be called for Free.'); }, undefined, undefined, 'free');
+  const response = await fetch(base + '/api/projects/' + project.id + '/generate', {
+    method: 'POST',
+    headers: { Cookie: cookie, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt: 'Create an app' })
+  });
+  assert.equal(response.status, 403);
+  assert.match((await response.json()).error, /active paid Builder plan/i);
+  assert.equal(coreCalls, 0);
+});
+
 test('does not save generated files when isolated build validation fails', async t => {
   const { base, cookie, project, store, user } = await setup(t, async url => coreResponse(url.endsWith('/v1/chat') ? 'chat' : 'coding', 'mock-model'), async () => { const e = new Error('Vite build failed.'); e.statusCode = 422; throw e; });
   const response = await fetch(base + '/api/projects/' + project.id + '/generate', { method: 'POST', headers: { Cookie: cookie, 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: 'Create an app' }) });
@@ -75,6 +94,10 @@ test('requires a connected Core key when no server key is configured', async t =
   const base = 'http://127.0.0.1:' + server.address().port;
   const auth = await fetch(base + '/api/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'nokey@example.test', password: 'a-long-test-password-123' }) });
   const cookie = auth.headers.get('set-cookie').split(';')[0];
+  const user = await store.getUserForSession(cookie.split('=')[1]);
+  const periodStart = new Date();
+  const periodEnd = new Date(periodStart); periodEnd.setUTCFullYear(periodEnd.getUTCFullYear() + 1);
+  await store.recordSubscription({ userId: user.id, plan: 'starter', billingInterval: '12_months', status: 'active', periodStart, periodEnd });
   const p = await fetch(base + '/api/projects', { method: 'POST', headers: { Cookie: cookie, 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'No key project' }) });
   const project = (await p.json()).project;
   const response = await fetch(base + '/api/projects/' + project.id + '/generate', { method: 'POST', headers: { Cookie: cookie, 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: 'Build an app' }) });

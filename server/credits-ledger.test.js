@@ -16,13 +16,13 @@ test('credit ledger grants and charges idempotently and never permits a negative
 
   assert.deepEqual(await store.getBillingState(user.id).then((state) => state.creditsBalance), 0);
   await store.recordSubscription({
-    userId: user.id, plan: 'starter', billingInterval: 'yearly', status: 'active',
+    userId: user.id, plan: 'starter', billingInterval: '12_months', status: 'active',
     periodStart: '2026-10-01T00:00:00.000Z', periodEnd: '2027-10-01T00:00:00.000Z'
   });
   const subscribed = await store.getBillingState(user.id);
   assert.equal(subscribed.subscription.plan, 'starter');
   assert.equal(subscribed.subscription.priceUsdCents, 10800);
-  assert.equal(subscribed.subscription.billingInterval, 'yearly');
+  assert.equal(subscribed.subscription.billingInterval, '12_months');
   assert.deepEqual(await store.grantCredits({
     userId: user.id, amount: 50, idempotencyKey: 'grant:period-1', reason: 'monthly test grant'
   }), { balance: 50, duplicate: false });

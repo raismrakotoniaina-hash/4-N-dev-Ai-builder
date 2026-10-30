@@ -69,6 +69,13 @@ export function createGenerationApi({store,fetchImpl=globalThis.fetch,coreApiUrl
   }
   const m=url.pathname.match(/^\/api\/projects\/([0-9a-f-]{36})\/generate$/i);if(!m||req.method!=='POST')return false;
   const user=await store.getUserForSession(cookieValue(req.headers.cookie));if(!user)return send(res,401,{success:false,error:'Authentication required.'});
+  let billingState;
+  try { billingState=await store.getBillingState(user.id); }
+  catch { return send(res,503,{success:false,error:'Builder subscription status is temporarily unavailable.'}); }
+  const subscription=billingState?.subscription;
+  if(!subscription||subscription.plan==='free'||subscription.status!=='active'||!Number.isFinite(Date.parse(subscription.periodEnd))||Date.parse(subscription.periodEnd)<=Date.now()){
+   return send(res,403,{success:false,error:'An active paid Builder plan is required for AI generation. Free accounts can create local prototypes.'});
+  }
   let creditJobId=randomUUID();let stage='request-validation';
   try{
    const chunks=[];let size=0;for await(const chunk of req){size+=chunk.length;if(size>16000)return send(res,413,{success:false,error:'Generation request is too large.'});chunks.push(chunk);}
@@ -78,8 +85,8 @@ export function createGenerationApi({store,fetchImpl=globalThis.fetch,coreApiUrl
    stage='project-lookup';const project=await store.getProject(user.id,m[1]);if(!project)return send(res,404,{success:false,error:'Project not found.'});
    stage='core-key-lookup';const key=coreApiKey||await store.getCoreKey(user.id);if(!key)return send(res,503,{success:false,error:'Connect a 4N DEV Core key before generating.'});
    setProgress(user.id,m[1],'Voaray ny prompt; manomana ny génération amin’ny 4N Core.');
-   // Core owns the balance and bills each model request. Builder must not debit
-   // its separate legacy credit ledger or enforce a second subscription gate.
+   // Core owns the balance and bills each model request. The paid-plan
+   // entitlement is checked above; Builder never debits its legacy credit ledger.
    stage='core-planner';setProgress(user.id,m[1],'Mandrafitra ny application.');
    const plan=await callCore(fetchImpl,coreApiUrl,key,'chat',{model:PIPELINE.planner,max_output_tokens:700,messages:[
     {role:'system',content:'You are the lead architect of a production web app builder. Convert the user request into a concise implementation plan. Identify pages, features, data entities, validation, security and responsive behavior. No source code.'},

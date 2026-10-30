@@ -1,27 +1,25 @@
-// Server-owned Builder plan catalogue. This does not charge payments or grant credits.
+// Server-owned Builder plan catalogue. Prices are total USD amounts for the selected duration.
+export const BILLING_DURATIONS = Object.freeze(['1_month', '3_months', '6_months', '12_months']);
+
 export const BUILDER_PLANS = Object.freeze({
   free: Object.freeze({
     id: 'free',
-    pricesUsdCents: Object.freeze({ monthly: 0, yearly: 0 }),
-    monthlyCredits: 0,
+    pricesUsdCents: Object.freeze({ '1_month': 0, '3_months': 0, '6_months': 0, '12_months': 0 }),
     prototypeOnly: true
   }),
   starter: Object.freeze({
     id: 'starter',
-    pricesUsdCents: Object.freeze({ monthly: 1200, yearly: 10800 }),
-    monthlyCredits: 50,
+    pricesUsdCents: Object.freeze({ '1_month': 1200, '3_months': 3420, '6_months': 6480, '12_months': 10800 }),
     prototypeOnly: false
   }),
   pro: Object.freeze({
     id: 'pro',
-    pricesUsdCents: Object.freeze({ monthly: 2500, yearly: 22800 }),
-    monthlyCredits: 150,
+    pricesUsdCents: Object.freeze({ '1_month': 2500, '3_months': 7125, '6_months': 13500, '12_months': 22800 }),
     prototypeOnly: false
   }),
   business: Object.freeze({
     id: 'business',
-    pricesUsdCents: Object.freeze({ monthly: 5000, yearly: 48000 }),
-    monthlyCredits: 400,
+    pricesUsdCents: Object.freeze({ '1_month': 5000, '3_months': 14250, '6_months': 27000, '12_months': 48000 }),
     prototypeOnly: false
   })
 });
@@ -34,16 +32,6 @@ export function getBuilderPlan(planId) {
 
 export function getBuilderPriceUsdCents(planId, interval) {
   const plan = getBuilderPlan(planId);
-  if (!plan || (interval !== 'monthly' && interval !== 'yearly')) return null;
+  if (!plan || !BILLING_DURATIONS.includes(interval)) return null;
   return plan.pricesUsdCents[interval];
-}
-
-export function getBuilderMonthlyCredits(planId) {
-  return getBuilderPlan(planId)?.monthlyCredits ?? null;
-}
-
-export function getBuilderYearlySavingsUsdCents(planId) {
-  const plan = getBuilderPlan(planId);
-  if (!plan || planId === 'free') return null;
-  return plan.pricesUsdCents.monthly * 12 - plan.pricesUsdCents.yearly;
 }
