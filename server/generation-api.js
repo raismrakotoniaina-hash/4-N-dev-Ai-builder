@@ -69,6 +69,11 @@ export function createGenerationApi({store,fetchImpl=globalThis.fetch,coreApiUrl
   }
   const m=url.pathname.match(/^\/api\/projects\/([0-9a-f-]{36})\/generate$/i);if(!m||req.method!=='POST')return false;
   const user=await store.getUserForSession(cookieValue(req.headers.cookie));if(!user)return send(res,401,{success:false,error:'Authentication required.'});
+  const billingState=await store.getBillingState(user.id);
+  const subscription=billingState?.subscription;
+  if(!subscription||subscription.plan==='free'||subscription.status!=='active'||!Number.isFinite(Date.parse(subscription.periodEnd))||Date.parse(subscription.periodEnd)<=Date.now()){
+   return send(res,403,{success:false,error:'An active paid Builder plan is required for AI generation. Free accounts can create local prototypes.'});
+  }
   let creditJobId=randomUUID();let stage='request-validation';
   try{
    const chunks=[];let size=0;for await(const chunk of req){size+=chunk.length;if(size>16000)return send(res,413,{success:false,error:'Generation request is too large.'});chunks.push(chunk);}
