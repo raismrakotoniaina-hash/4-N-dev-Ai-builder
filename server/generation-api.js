@@ -85,8 +85,8 @@ export function createGenerationApi({store,fetchImpl=globalThis.fetch,coreApiUrl
    stage='project-lookup';const project=await store.getProject(user.id,m[1]);if(!project)return send(res,404,{success:false,error:'Project not found.'});
    stage='core-key-lookup';const key=coreApiKey||await store.getCoreKey(user.id);if(!key)return send(res,503,{success:false,error:'Connect a 4N DEV Core key before generating.'});
    setProgress(user.id,m[1],'Voaray ny prompt; manomana ny génération amin’ny 4N Core.');
-   // Core owns the balance and bills each model request. Builder must not debit
-   // its separate legacy credit ledger or enforce a second subscription gate.
+   // Core owns the balance and bills each model request. The paid-plan
+   // entitlement is checked above; Builder never debits its legacy credit ledger.
    stage='core-planner';setProgress(user.id,m[1],'Mandrafitra ny application.');
    const plan=await callCore(fetchImpl,coreApiUrl,key,'chat',{model:PIPELINE.planner,max_output_tokens:700,messages:[
     {role:'system',content:'You are the lead architect of a production web app builder. Convert the user request into a concise implementation plan. Identify pages, features, data entities, validation, security and responsive behavior. No source code.'},
