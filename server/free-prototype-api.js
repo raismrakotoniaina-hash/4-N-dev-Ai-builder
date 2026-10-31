@@ -38,7 +38,7 @@ export function makeFiles({ projectName, prompt, template }) {
   const title = JSON.stringify(safeName);
   const descriptionJson = JSON.stringify(description);
   const templateJson = JSON.stringify(template);
-  const app = `import { useState } from 'react';
+  const app = `import { useState, type FormEvent } from 'react';
 
 const projectName = ${title};
 const description = ${descriptionJson};
@@ -82,7 +82,7 @@ export default function App() {
   const [draft, setDraft] = useState('');
   const [messages, setMessages] = useState([{ role: 'assistant', text: 'Salama! Tongasoa eto amin’ny assistant. Inona no azoko anampiana anao?' }]);
   const items = sections[template] || sections.landing;
-  function sendMessage(event) {
+  function sendMessage(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const value = draft.trim();
     if (!value) return;
