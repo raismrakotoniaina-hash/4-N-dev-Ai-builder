@@ -166,3 +166,20 @@ test('saves an isolated preview artifact separately from user-visible source fil
   assert.ok(saved.some(file => file.path === '__4ndev_preview.html' && file.content === previewHtml));
   assert.ok(result.generatedFiles.every(file => file.path !== '__4ndev_preview.html'));
 });
+
+
+test('chatbot prompts select a dedicated chat prototype before dashboard fallbacks', () => {
+  assert.equal(chooseTemplate('Mamorona app chat bot professionnel'), 'chat');
+  assert.equal(chooseTemplate('Create a professional chatbot for customer support'), 'chat');
+  assert.equal(chooseTemplate('Assistant virtuel avec messagerie'), 'chat');
+  const files = makeFiles({ projectName: 'Assistant', prompt: 'Mamorona app chat bot professionnel', template: 'chat' });
+  const source = files.find(file => file.path === 'src/App.tsx').content;
+  assert.match(source, /ASSISTANT VIRTUEL/);
+  assert.match(source, /chat-form/);
+  assert.match(source, /MODE DEMO/);
+});
+
+test('task manager prompts are not misclassified as generic dashboards', () => {
+  assert.equal(chooseTemplate('Gestion des tâches avec suivi de progression'), 'tasks');
+  assert.equal(chooseTemplate('Build a task manager with a todo list'), 'tasks');
+});
