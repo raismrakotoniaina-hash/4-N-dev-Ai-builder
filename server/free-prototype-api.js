@@ -42,7 +42,8 @@ export function makeFiles({ projectName, prompt, template }) {
 
 const projectName = ${title};
 const description = ${descriptionJson};
-const template = ${templateJson};
+type Template = 'chat' | 'tasks' | 'landing' | 'portfolio' | 'business' | 'dashboard';
+const template: Template = ${templateJson};
 
 const sections = {
   chat: [
