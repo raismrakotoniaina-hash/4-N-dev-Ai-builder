@@ -45,6 +45,7 @@ test('template files form a bounded, runnable Vite app', () => {
   assert.equal(pkg.scripts.build, 'tsc -b && vite build');
   assert.equal(pkg.dependencies.react, '19.3.0');
   assert.match(files.find(file => file.path === 'src/App.tsx').content, /4N DEV/);
+  assert.match(files.find(file => file.path === 'src/App.tsx').content, /type Template = 'chat' \| 'tasks' \| 'landing' \| 'portfolio' \| 'business' \| 'dashboard'/);
 });
 
 test('authenticated owner gets a saved prototype with zero Core calls', async () => {
