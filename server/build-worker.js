@@ -217,20 +217,35 @@ export async function buildGeneratedApp(files) {
 }
 
 function send(socket, payload) {
-  if (!socket.destroyed && !socket.writableEnded) socket.end(JSON.stringify(payload));
+  if (socket.destroyed || socket.writableEnded) return;
+  try {
+    socket.end(JSON.stringify(payload));
+  } catch {
+    socket.destroy();
+  }
 }
 
 export function createBuildWorkerServer({ socketPath = SOCKET_PATH, buildImpl = buildGeneratedApp } = {}) {
   const server = createServer({ allowHalfOpen: true }, socket => {
+    socket.on('error', () => {});
     socket.setTimeout(BUILD_TIMEOUT_MS + 10_000, () => socket.destroy());
     let input = '';
+    let oversized = false;
+    let processing = false;
+
     socket.on('data', chunk => {
+      if (oversized || processing) return;
       input += chunk.toString('utf8');
       if (Buffer.byteLength(input, 'utf8') > MAX_REQUEST_BYTES) {
+        oversized = true;
+        input = '';
         send(socket, { success: false, error: 'Build request exceeds size limits.' });
       }
     });
+
     socket.on('end', async () => {
+      if (oversized || processing) return;
+      processing = true;
       try {
         const request = JSON.parse(input);
         const result = await buildImpl(request.files);
