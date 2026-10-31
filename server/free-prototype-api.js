@@ -24,7 +24,9 @@ export function chooseTemplate(prompt) {
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .toLocaleLowerCase('fr');
-  if (/portfolio|\bcv\b|resume|personnel|personal website|tranokala manokana|tranonkala manokana|momba ahy|asa nataoko/.test(value)) return 'portfolio';
+  if (/chat\s*bot|chatbot|\bbot\b|assistant virtuel|assistant conversationnel|service client|customer support|messagerie|messaging|tchat|resaka/.test(value)) return 'chat';
+  if (/task manager|todo|to-do|gestion de taches|gestion des taches|task tracking|fitantanana asa|lisitry ny asa|asa isanandro/.test(value)) return 'tasks';
+  if (/portfolio|\bcv\b|resume|personnel|personal website|tranonkala manokana|momba ahy|asa nataoko/.test(value)) return 'portfolio';
   if (/dashboard|admin|statistique|analytics|gestion|tatitra|tabilao|fitantanana|famintinana/.test(value)) return 'dashboard';
   if (/restaurant|trano fisakafoanana|boutique|fivarotana|varotra|business|entreprise|orinasa|commerce|service|vokatra/.test(value)) return 'business';
   return 'landing';
@@ -43,6 +45,16 @@ const description = ${descriptionJson};
 const template = ${templateJson};
 
 const sections = {
+  chat: [
+    { title: 'Resaka', text: 'Sehatra hiresahan’ny mpitsidika amin’ny assistant.' },
+    { title: 'Fanontaniana mahazatra', text: 'Valiny sy fanampiana ho an’ny mpampiasa.' },
+    { title: 'Fifandraisana', text: 'Fomba hifandraisana amin’ny ekipa mpanampy.' }
+  ],
+  tasks: [
+    { title: 'Asa rehetra', text: 'Jereo sy alamino ireo asa.' },
+    { title: 'Mbola hatao', text: 'Araho ireo asa mbola miandry.' },
+    { title: 'Vita', text: 'Jereo ireo asa efa vita.' }
+  ],
   landing: [
     { title: 'Tongasoa', text: 'Pejy fandraisana mazava sy sariaka ho an’ny tetikasanao.' },
     { title: 'Ny tolotra', text: 'Hazavao eto ireo tolotra na endri-javatra lehibe.' },
@@ -67,7 +79,16 @@ const sections = {
 
 export default function App() {
   const [active, setActive] = useState(0);
+  const [draft, setDraft] = useState('');
+  const [messages, setMessages] = useState([{ role: 'assistant', text: 'Salama! Tongasoa eto amin’ny assistant. Inona no azoko anampiana anao?' }]);
   const items = sections[template] || sections.landing;
+  function sendMessage(event) {
+    event.preventDefault();
+    const value = draft.trim();
+    if (!value) return;
+    setMessages(current => [...current, { role: 'user', text: value }, { role: 'assistant', text: 'Voaray ny hafatrao. Ity dia prototype demo eo an-toerana; ampifandraiso amin’ny backend AI rehefa mampiasa ny generation feno.' }]);
+    setDraft('');
+  }
   return (
     <main className="page">
       <nav className="nav"><span className="brand">{projectName}</span><span className="badge">4N DEV</span></nav>
@@ -77,11 +98,19 @@ export default function App() {
         <p className="lead">{description || 'Application azo ovaina sy hatsaraina.'}</p>
         <a className="button" href="#contenu">Hijery ny votoaty</a>
       </section>
-      <section id="contenu" className="content">
-        <h2>Votoatin’ny application</h2>
-        <div className="tabs">{items.map((item, index) => <button key={item.title} className={active === index ? 'tab active' : 'tab'} onClick={() => setActive(index)}>{item.title}</button>)}</div>
-        <article className="card"><span className="number">0{active + 1}</span><h3>{items[active].title}</h3><p>{items[active].text}</p></article>
-      </section>
+      {template === 'chat' ? (
+        <section id="contenu" className="content chat-content">
+          <div className="chat-heading"><div><p className="eyebrow">ASSISTANT VIRTUEL</p><h2>Afaka manampy anao izahay</h2></div><span className="demo-tag">MODE DEMO · SANS IA</span></div>
+          <div className="chat-panel"><div className="chat-messages" aria-live="polite">{messages.map((message, index) => <div key={index} className={'chat-message ' + message.role}><span>{message.role === 'assistant' ? '4N Assistant' : 'Ianao'}</span><p>{message.text}</p></div>)}</div><form className="chat-form" onSubmit={sendMessage}><input value={draft} onChange={event => setDraft(event.target.value)} placeholder="Soraty eto ny hafatrao…" aria-label="Hafatra"/><button className="button" type="submit" disabled={!draft.trim()}>Alefa</button></form></div>
+          <p className="chat-note">Prototype eo an-toerana ity. Tsy mandefa hafatra amin’ny 4N Core ary tsy mandany crédit.</p>
+        </section>
+      ) : (
+        <section id="contenu" className="content">
+          <h2>Votoatin’ny application</h2>
+          <div className="tabs">{items.map((item, index) => <button key={item.title} className={active === index ? 'tab active' : 'tab'} onClick={() => setActive(index)}>{item.title}</button>)}</div>
+          <article className="card"><span className="number">0{active + 1}</span><h3>{items[active].title}</h3><p>{items[active].text}</p></article>
+        </section>
+      )}
       <footer>Noforonina tamin’ny 4N DEV AI Builder.</footer>
     </main>
   );
@@ -111,7 +140,21 @@ h2 { font-size:clamp(1.6rem,4vw,2.4rem); letter-spacing:-.04em; }
 h3 { font-size:1.6rem; margin:.6rem 0; }
 .card p { color:#657086; line-height:1.7; }
 footer { padding:1.5rem; text-align:center; color:#6a7487; font-size:.85rem; border-top:1px solid #e2e7f0; }
-@media (max-width:600px) { .nav { padding:1rem; } .tabs { display:grid; grid-template-columns:1fr; } .tab { text-align:left; } }
+.chat-content { max-width:900px; }
+.chat-heading { display:flex; align-items:flex-end; justify-content:space-between; gap:1rem; flex-wrap:wrap; }
+.demo-tag { border-radius:999px; padding:.45rem .7rem; background:#fff4d6; color:#805500; font-size:.7rem; font-weight:800; letter-spacing:.06em; }
+.chat-panel { overflow:hidden; border:1px solid #e2e7f0; border-radius:1.2rem; background:#fff; box-shadow:0 12px 40px #182c4a0a; }
+.chat-messages { display:flex; flex-direction:column; gap:1rem; min-height:260px; max-height:460px; overflow:auto; padding:1.25rem; }
+.chat-message { max-width:min(85%,620px); padding:.85rem 1rem; border-radius:1rem; background:#f0f3f9; }
+.chat-message.user { align-self:flex-end; background:#e7efff; }
+.chat-message span { color:#60708a; font-size:.72rem; font-weight:800; }
+.chat-message p { margin:.35rem 0 0; line-height:1.6; white-space:pre-wrap; overflow-wrap:anywhere; }
+.chat-form { display:flex; gap:.65rem; padding:1rem; border-top:1px solid #e6eaf2; }
+.chat-form input { flex:1; min-width:0; padding:.8rem 1rem; border:1px solid #dbe2ee; border-radius:.75rem; }
+.chat-form .button { margin:0; border:0; cursor:pointer; }
+.chat-form .button:disabled { opacity:.5; cursor:not-allowed; }
+.chat-note { color:#6a7487; font-size:.82rem; }
+@media (max-width:600px) { .nav { padding:1rem; } .tabs { display:grid; grid-template-columns:1fr; } .tab { text-align:left; } .chat-form { flex-direction:column; } .chat-form .button { width:100%; } }
 `;
   const packageJson = JSON.stringify({
     name: '4ndev-generated-app',
