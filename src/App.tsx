@@ -92,14 +92,29 @@ export default function App() {
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not open project.'); }
   }
   useEffect(() => {
-    api<{ user: User }>('/api/auth/me').then(r => { setUser(r.user); return Promise.all([refreshProjects(), refreshCoreStatus(), refreshBilling()]); })
-      .catch(() => setUser(null)).finally(() => setLoading(false));
+    let alive = true;
+    api<{ user: User }>('/api/auth/me')
+      .then(async r => {
+        if (!alive) return;
+        setUser(r.user);
+        const results = await Promise.allSettled([refreshProjects(), refreshCoreStatus(), refreshBilling()]);
+        if (!alive) return;
+        if (results[0].status === 'rejected') setError('Could not load your projects. Please refresh.');
+        if (results[2].status === 'rejected') setError('Could not load subscription status. Refresh before generating.');
+      })
+      .catch(() => { if (alive) setUser(null); })
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
   }, []);
   async function authenticate(event: React.FormEvent) {
     event.preventDefault(); setBusy(true); setError('');
     try {
       const r = await api<{ user: User }>('/api/auth/' + authMode, { method: 'POST', body: JSON.stringify({ email, password }) });
-      setUser(r.user); await Promise.all([refreshProjects(), refreshCoreStatus(), refreshBilling()]); setNotice('Welcome to your workspace.');
+      setUser(r.user);
+      const results = await Promise.allSettled([refreshProjects(), refreshCoreStatus(), refreshBilling()]);
+      if (results[0].status === 'rejected') setError('Signed in, but projects could not be loaded. Please refresh.');
+      if (results[2].status === 'rejected') setError('Signed in, but subscription status could not be loaded. Refresh before generating.');
+      setNotice('Welcome to your workspace.');
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not sign in.'); }
     finally { setBusy(false); }
   }
@@ -110,6 +125,7 @@ export default function App() {
   async function generate(text = prompt, target = mode) {
     const brief = text.trim();
     if (!brief) { setError('Soraty aloha izay application tianao hatsangana.'); return; }
+    if (!billing) { setError('Subscription status is not available yet. Refresh the workspace before generating.'); return; }
     setBusy(true); setError(''); setNotice('');
     try {
       let active = project;
@@ -118,7 +134,10 @@ export default function App() {
         active = created.project; setProject(active);
       }
       const fullPrompt = 'TARGET PLATFORM: ' + (target === 'mobile' ? 'MOBILE. Generate a native Expo React Native app for Android and iOS in the mobile/ directory.' : 'WEB. Generate a responsive React + TypeScript + Vite web app.') + '\n' + brief;
-      const endpoint = billing?.subscription.plan === 'free' ? 'prototype' : 'generate';
+      const subscription = billing.subscription;
+      const paidActive = Boolean(subscription && subscription.plan !== 'free' && subscription.status === 'active'
+        && subscription.periodEnd && Date.parse(subscription.periodEnd) > Date.now());
+      const endpoint = paidActive ? 'generate' : 'prototype';
       const result = await api<{ project: Project; usage?: { charged_usd?: number } }>('/api/projects/' + active.id + '/' + endpoint, { method: 'POST', body: JSON.stringify({ prompt: fullPrompt }) });
       const generated = result.project.files || [];
       setFiles(generated); setActiveFile(generated[0]?.path || ''); setProject(result.project); await refreshProjects(); setScreen('code');
@@ -127,7 +146,7 @@ export default function App() {
     finally { setBusy(false); }
   }
   if (loading) return <main className="loading-screen"><LoaderCircle className="spin" size={28}/><span>Loading your workspace…</span></main>;
-  if (!user) return <main className="auth-screen"><div className="auth-glow"/><section className="auth-card"><div className="brand"><span className="brand-icon"><Sparkles size={21}/></span><span><b>4N DEV</b><small>AI APP STUDIO</small></span></div><p className="eyebrow">YOUR IDEA, BUILT WITH AI</p><h1>Make something<br/><em>remarkable.</em></h1><p className="auth-copy">Describe your idea. Build for the web or create a native mobile app from one workspace.</p><form onSubmit={authenticate}><label>Email address</label><input type="email" autoComplete="email" required value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@example.com"/><label>Password</label><input type="password" minLength={12} autoComplete={authMode==='login'?'current-password':'new-password'} required value={password} onChange={e=>setPassword(e.target.value)} placeholder="At least 10 characters"/>{error&&<p className="error">{error}</p>}<button className="primary full" disabled={busy}>{busy?<LoaderCircle className="spin" size={17}/>:null}{authMode==='register'?'Create workspace':'Sign in'}<ArrowRight size={17}/></button></form><p className="switch-auth">{authMode==='register'?'Already have an account?':'New to 4N DEV?'} <button onClick={()=>{setAuthMode(authMode==='register'?'login':'register');setError('')}}>{authMode==='register'?'Sign in':'Create account'}</button></p><div className="secure-note"><CheckCircle2 size={14}/> Private workspace · Your projects stay yours</div></section></main>;
+  if (!user) return <main className="auth-screen"><div className="auth-glow"/><section className="auth-card"><div className="brand"><span className="brand-icon"><Sparkles size={21}/></span><span><b>4N DEV</b><small>AI APP STUDIO</small></span></div><p className="eyebrow">YOUR IDEA, BUILT WITH AI</p><h1>Make something<br/><em>remarkable.</em></h1><p className="auth-copy">Describe your idea. Build for the web or create a native mobile app from one workspace.</p><form onSubmit={authenticate}><label>Email address</label><input type="email" autoComplete="email" required value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@example.com"/><label>Password</label><input type="password" minLength={12} autoComplete={authMode==='login'?'current-password':'new-password'} required value={password} onChange={e=>setPassword(e.target.value)} placeholder="At least 12 characters"/>{error&&<p className="error">{error}</p>}<button className="primary full" disabled={busy}>{busy?<LoaderCircle className="spin" size={17}/>:null}{authMode==='register'?'Create workspace':'Sign in'}<ArrowRight size={17}/></button></form><p className="switch-auth">{authMode==='register'?'Already have an account?':'New to 4N DEV?'} <button onClick={()=>{setAuthMode(authMode==='register'?'login':'register');setError('')}}>{authMode==='register'?'Sign in':'Create account'}</button></p><div className="secure-note"><CheckCircle2 size={14}/> Private workspace · Your projects stay yours</div></section></main>;
 
   return <div className="app-shell"><aside className={'sidebar '+(mobileMenu?'sidebar-open':'')}><div className="brand"><span className="brand-icon"><Sparkles size={21}/></span><span><b>4N DEV</b><small>AI APP STUDIO</small></span><button className="close-menu" onClick={()=>setMobileMenu(false)}><X size={18}/></button></div><button className="workspace-card"><span className="workspace-avatar">{user.email[0]?.toUpperCase()}</span><span><b>My workspace</b><small>{user.email}</small></span></button><p className="nav-label">WORKSPACE</p><button className={'nav-link '+(screen==='build'?'selected':'')} onClick={()=>{setScreen('build');setMobileMenu(false)}}><Sparkles size={17}/> Create app</button><button className={'nav-link '+(screen==='projects'?'selected':'')} onClick={()=>{setScreen('projects');setMobileMenu(false)}}><FolderOpen size={17}/> My projects <span className="nav-count">{projects.length}</span></button><button className={'nav-link '+(screen==='settings'?'selected':'')} onClick={()=>{setScreen('settings');setMobileMenu(false);setError('');refreshCoreStatus()}}><Settings size={17}/> Settings</button><div className="sidebar-bottom"><div className="core-card"><span className="core-dot"/><div><b>4N Core</b><small>AI billing & orchestration</small></div><span className="live-label">{coreConnected?'CONNECTED':'SETUP'}</span></div><button className="nav-link signout" onClick={signOut}><LogOut size={17}/> Sign out</button><p className="sidebar-foot">BUILD WITH CLARITY. SHIP WITH CONFIDENCE.</p></div></aside><main className="main-area"><header className="topbar"><button className="menu-button" onClick={()=>setMobileMenu(true)}><span>☰</span></button><div className="breadcrumbs"><span>Workspace</span><span>/</span><b>{screen==='build'?'Create app':screen==='projects'?'My projects':screen==='settings'?'Settings':project?.name||'Code'}</b></div><div className="top-actions"><span className="avatar">{user.email[0]?.toUpperCase()}</span><span className="user-email">{user.email}</span></div></header>
   {screen==='build'&&<section className="builder-page"><div className="hero"><div className="hero-pill"><span/> THE AI-POWERED APP WORKSPACE</div><h1>What will you<br className="mobile-break"/> <em>build today?</em></h1><p>Start with an idea. 4N DEV turns your description into a real project.</p></div><div className="composer"><div className="composer-top"><div><span className="composer-kicker">NEW PROJECT</span><h2>Describe your app</h2></div><span className="step-number">01 <span>/ 03</span></span></div><div className="mode-picker"><button className={mode==='web'?'mode-option active':'mode-option'} onClick={()=>setMode('web')}><Monitor size={19}/><span><b>Web app</b><small>React · TypeScript</small></span>{mode==='web'&&<CheckCircle2 size={16}/>}</button><button className={mode==='mobile'?'mode-option active':'mode-option'} onClick={()=>setMode('mobile')}><Smartphone size={19}/><span><b>Mobile app</b><small>Expo · Android & iOS</small></span>{mode==='mobile'&&<CheckCircle2 size={16}/>}</button></div><textarea value={prompt} onChange={e=>setPrompt(e.target.value)} placeholder={mode==='web'?'A booking platform with a calendar, customer accounts, and an admin dashboard…':'A mobile habit tracker with daily goals, reminders, and progress charts…'} rows={5} maxLength={12000}/><div className="composer-bottom"><span>{prompt.length.toLocaleString()} / 12,000 characters</span><button className="primary" onClick={()=>generate()} disabled={busy||!prompt.trim()}>{busy?<><LoaderCircle size={17} className="spin"/> Building…</>:<><Sparkles size={17}/> Generate app <ArrowRight size={16}/></>}</button></div>{error&&<div className="error-banner">{error}</div>}{notice&&<div className="notice-banner"><CheckCircle2 size={16}/>{notice}</div>}<p className="privacy-line"><CheckCircle2 size={14}/> Your app is generated in an isolated build environment.</p></div><div className="starter-section"><div className="section-heading"><div><span className="composer-kicker">GET A HEAD START</span><h2>Start from an idea</h2></div><span className="starter-caption">Choose a template prompt</span></div><div className="starter-grid">{starters.map(item=><button key={item.title} className="starter-card" onClick={()=>{setMode(item.mode);setPrompt(item.prompt)}}><span className="starter-icon">{item.mode==='mobile'?<Smartphone size={19}/>:<Code2 size={19}/>}</span><b>{item.title}</b><small>{item.detail}</small><span className="starter-arrow"><ArrowRight size={16}/></span></button>)}</div></div></section>}
