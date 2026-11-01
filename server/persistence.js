@@ -346,7 +346,7 @@ export function createPersistence({ filePath = process.env.BUILDER_DATA_FILE || 
 
   async function grantCredits(options) {
     if (!Number.isSafeInteger(options.amount) || options.amount <= 0) throw new TypeError('Granted credits must be a positive integer.');
-    return changeCredits({ ...options, eventType: 'grant' });
+    return changeCredits({ ...options, creditPool: 'builder', eventType: 'grant' });
   }
 
   async function consumeCredits(options) {
