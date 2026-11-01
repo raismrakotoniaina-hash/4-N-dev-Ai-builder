@@ -354,7 +354,7 @@ export function createPostgresPersistence({ pool, encryptionKey = process.env.BU
 
   async function grantCredits(options) {
     if (!Number.isSafeInteger(options.amount) || options.amount <= 0) throw new TypeError('Granted credits must be a positive integer.');
-    return changeCredits({ ...options, eventType: 'grant' });
+    return changeCredits({ ...options, creditPool: 'builder', eventType: 'grant' });
   }
 
   async function consumeCredits(options) {
