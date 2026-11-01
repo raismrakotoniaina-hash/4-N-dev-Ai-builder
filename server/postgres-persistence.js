@@ -286,9 +286,12 @@ export function createPostgresPersistence({ pool, encryptionKey = process.env.BU
     );
     const subscription = subscriptionResult.rows[0] || null;
     const balanceResult = await pool.query(
-      'SELECT balance_after FROM builder_credit_ledger WHERE user_id=$1 ORDER BY id DESC LIMIT 1',
+      'SELECT DISTINCT ON (credit_pool) credit_pool,balance_after FROM builder_credit_ledger WHERE user_id=$1 ORDER BY credit_pool,id DESC',
       [userId]
     );
+    const creditBalances = Object.fromEntries(balanceResult.rows.map((item) => [item.credit_pool, item.balance_after]));
+    const builderCreditsBalance = creditBalances.builder ?? 0;
+    const runtimeCreditsBalance = creditBalances.runtime ?? 0;
     const row = subscription ? {
       plan: subscription.plan,
       billingInterval: subscription.billing_interval,
@@ -303,26 +306,27 @@ export function createPostgresPersistence({ pool, encryptionKey = process.env.BU
       priceUsdCents: 0, currency: 'USD', periodStart: null, periodEnd: null,
       cancelAtPeriodEnd: false
     };
-    return { subscription: row, creditsBalance: balanceResult.rows[0]?.balance_after ?? 0 };
+    return { subscription: row, creditsBalance: builderCreditsBalance, builderCreditsBalance, runtimeCreditsBalance };
   }
 
-  async function changeCredits({ userId, amount, idempotencyKey, eventType, reason, projectId = null, jobId = null, periodStart = null, periodEnd = null, metadata = {} }) {
+  async function changeCredits({ userId, amount, idempotencyKey, eventType, reason, creditPool = 'builder', projectId = null, jobId = null, periodStart = null, periodEnd = null, metadata = {} }) {
     if (!Number.isSafeInteger(amount) || amount === 0 || typeof idempotencyKey !== 'string' || !idempotencyKey.trim() || idempotencyKey.length > 200) {
       throw new TypeError('A non-zero integer credit amount and valid idempotency key are required.');
     }
     if (typeof reason !== 'string' || !reason.trim()) throw new TypeError('A credit ledger reason is required.');
+    if (!['builder', 'runtime'].includes(creditPool)) throw new TypeError('Invalid credit pool.');
     if (!['grant', 'reserve', 'charge', 'refund', 'expire', 'adjustment'].includes(eventType)) throw new TypeError('Invalid credit ledger event type.');
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
       const user = await client.query('SELECT id FROM builder_users WHERE id=$1 FOR UPDATE', [userId]);
       if (!user.rowCount) throw new Error('Account not found.');
-      const existing = await client.query('SELECT balance_after FROM builder_credit_ledger WHERE user_id=$1 AND idempotency_key=$2', [userId, idempotencyKey]);
+      const existing = await client.query('SELECT balance_after FROM builder_credit_ledger WHERE user_id=$1 AND credit_pool=$2 AND idempotency_key=$3', [userId, creditPool, idempotencyKey]);
       if (existing.rowCount) {
         await client.query('COMMIT');
         return { balance: existing.rows[0].balance_after, duplicate: true };
       }
-      const current = await client.query('SELECT balance_after FROM builder_credit_ledger WHERE user_id=$1 ORDER BY id DESC LIMIT 1', [userId]);
+      const current = await client.query('SELECT balance_after FROM builder_credit_ledger WHERE user_id=$1 AND credit_pool=$2 ORDER BY id DESC LIMIT 1', [userId, creditPool]);
       const balance = (current.rows[0]?.balance_after ?? 0) + amount;
       if (balance < 0) {
         const error = new Error('Insufficient Builder credits.');
@@ -330,9 +334,9 @@ export function createPostgresPersistence({ pool, encryptionKey = process.env.BU
         throw error;
       }
       await client.query(
-        `INSERT INTO builder_credit_ledger(user_id,delta,balance_after,event_type,idempotency_key,period_start,period_end,project_id,job_id,reason,metadata)
-         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb)`,
-        [userId, amount, balance, eventType, idempotencyKey, periodStart, periodEnd, projectId, jobId, reason.trim(), JSON.stringify(metadata)]
+        `INSERT INTO builder_credit_ledger(user_id,credit_pool,delta,balance_after,event_type,idempotency_key,period_start,period_end,project_id,job_id,reason,metadata)
+         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb)`,
+        [userId, creditPool, amount, balance, eventType, idempotencyKey, periodStart, periodEnd, projectId, jobId, reason.trim(), JSON.stringify(metadata)]
       );
       await client.query('COMMIT');
       return { balance, duplicate: false };
@@ -355,8 +359,18 @@ export function createPostgresPersistence({ pool, encryptionKey = process.env.BU
 
   async function consumeCredits(options) {
     if (!Number.isSafeInteger(options.amount) || options.amount <= 0) throw new TypeError('Consumed credits must be a positive integer.');
-    return changeCredits({ ...options, amount: -options.amount, eventType: 'charge' });
+    return changeCredits({ ...options, creditPool: 'builder', amount: -options.amount, eventType: 'charge' });
   }
 
-  return { createUser, verifyUser, createSession, getUserForSession, deleteSession, connectCoreKey, getCoreKey, disconnectCoreKey, coreConnectionStatus, listProjects, createProject, getProject, updateProject, deleteProject, putFile, putFiles, deleteFile, getBillingState, recordSubscription, grantCredits, consumeCredits };
+  async function grantRuntimeCredits(options) {
+    if (!Number.isSafeInteger(options.amount) || options.amount <= 0) throw new TypeError('Granted credits must be a positive integer.');
+    return changeCredits({ ...options, creditPool: 'runtime', eventType: 'grant' });
+  }
+
+  async function consumeRuntimeCredits(options) {
+    if (!Number.isSafeInteger(options.amount) || options.amount <= 0) throw new TypeError('Consumed credits must be a positive integer.');
+    return changeCredits({ ...options, creditPool: 'runtime', amount: -options.amount, eventType: 'charge' });
+  }
+
+  return { createUser, verifyUser, createSession, getUserForSession, deleteSession, connectCoreKey, getCoreKey, disconnectCoreKey, coreConnectionStatus, listProjects, createProject, getProject, updateProject, deleteProject, putFile, putFiles, deleteFile, getBillingState, recordSubscription, grantCredits, consumeCredits, grantRuntimeCredits, consumeRuntimeCredits };
 }
