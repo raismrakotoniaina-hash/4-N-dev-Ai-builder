@@ -145,7 +145,7 @@ export default function App() {
       const endpoint = paidActive ? 'generate' : 'prototype';
       const result = await api<{ project: Project; usage?: { charged_usd?: number } }>('/api/projects/' + active.id + '/' + endpoint, { method: 'POST', body: JSON.stringify({ prompt: fullPrompt }) });
       const generated = result.project.files || [];
-      setFiles(generated); setActiveFile(generated.find(f => f.path !== '__4ndev_preview.html')?.path || ''); setProject(result.project); await refreshProjects(); setScreen('code');
+      setFiles(generated); setActiveFile(generated.find(f => f.path !== '__4ndev_preview.html')?.path || ''); setProject(result.project); await refreshProjects(); setScreen(generated.some(f => f.path === '__4ndev_preview.html') ? 'preview' : 'code');
       setNotice(endpoint === 'prototype' ? 'Free prototype created and validated locally. No Core credits were used.' : 'AI generation and isolated build validation completed. Core handles AI billing.');
     } catch (e) { setError(e instanceof Error ? e.message : 'Generation failed.'); }
     finally { setBusy(false); }
