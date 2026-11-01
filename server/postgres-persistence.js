@@ -343,7 +343,7 @@ export function createPostgresPersistence({ pool, encryptionKey = process.env.BU
     } catch (error) {
       await client.query('ROLLBACK').catch(() => {});
       if (error.code === '23505') {
-        const existing = await pool.query('SELECT balance_after FROM builder_credit_ledger WHERE user_id=$1 AND idempotency_key=$2', [userId, idempotencyKey]);
+        const existing = await pool.query('SELECT balance_after FROM builder_credit_ledger WHERE user_id=$1 AND credit_pool=$2 AND idempotency_key=$3', [userId, creditPool, idempotencyKey]);
         if (existing.rowCount) return { balance: existing.rows[0].balance_after, duplicate: true };
       }
       throw error;
