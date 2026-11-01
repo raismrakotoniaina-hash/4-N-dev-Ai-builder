@@ -1,57 +1,52 @@
 # 4N DEV AI Builder billing and credits review
 
-Status: review branch only. This document does not authorize a production migration, service restart, deployment, or payment activation.
+Status: verification branch only. This document does not authorize a production migration, service restart, deployment, payment activation, or OAuth activation.
 
-## Approved commercial policy
+## Commercial plan catalogue
 
-All prices are USD and annual subscriptions are paid upfront for 12 months.
+Prices are USD total amounts for the selected term:
 
-| Plan | Monthly price | Annual upfront | Monthly-equivalent annual price | Monthly credit allowance |
+| Plan | 1 month | 3 months | 6 months | 12 months |
 |---|---:|---:|---:|---:|
-| Free | $0 | $0 | $0 | 0 |
-| Starter | $12 | $108 | $9 | 50 |
-| Pro | $25 | $228 | $19 | 150 |
-| Business | $50 | $480 | $40 | 400 |
+| Starter | $12 | $34.20 | $64.80 | $108 |
+| Pro | $25 | $71.25 | $135 | $228 |
+| Business | $50 | $142.50 | $270 | $480 |
 
-- Monthly subscriptions renew at the monthly price.
-- Annual subscriptions renew every 12 months at the annual upfront price.
-- Annual subscribers receive only one month's credit allowance per monthly period, not 12 months of credits upfront.
-- Unused monthly credits expire at the end of their period and do not roll over.
-- Cancellation preserves paid access through the already-paid period; no future monthly credit grant is made after that period.
-- If renewal payment fails, retry according to the payment provider's supported policy; after the retry policy is exhausted, downgrade access to Free. Preserve projects/files, but disable paid AI generation.
-- A failed generation must refund its Builder credit charge. Refund operations must be idempotent and failures must be surfaced rather than silently treated as successful.
-- Builder credits are internal quota units, not Core credits and not a USD balance.
-- No Core API, Core Console, or N-AI Chat schema/configuration is part of this billing change.
+Free remains local prototype-only. GitHub entitlement is limited to Pro and Business in the pricing UI. Monthly credit allowances are deliberately not asserted here: no confirmed quota policy or cost-based allocation is wired into the product.
 
-## Current implementation review
+## Audit findings
 
-Implemented in this review branch:
-- Centralize plan price lookup through `server/builder-plans.js` for both JSON and PostgreSQL persistence, reducing price drift.
-- The generation API retries a failed refund once using the same idempotency key and returns an explicit `refundPending` response with a job reference if the database still cannot confirm the refund.
-- The billing endpoint explicitly reports monthly grant, expiry, and rollover lifecycle as `not_enabled`.
-- Tests cover the approved plan catalogue, billing status flags, and a refund-persistence failure.
+- The previous ledger stored one global balance and could not isolate build-time and app-runtime consumption.
+- The generation API checks paid subscription status and calls the user's configured 4N Core key. The current branch does not debit Builder credits for generation; tests explicitly verify this. Core usage is billed by Core independently.
+- There is no runtime integration gateway or active app connector execution layer yet.
+- Monthly credit grants, period-bound expiry, no-rollover enforcement, renewal, and downgrade jobs are not implemented.
+- Checkout, payment webhooks, GitHub OAuth, repository sync, and public publishing are not implemented or enabled.
 
-Already aligned:
-- The current catalogue and migration SQL use the approved prices and quotas.
-- Checkout and automatic renewal are disabled (`paymentsEnabled: false`, `renewalEnabled: false`).
+## Changes in this verification branch
 
-## Production blockers — do not enable billing yet
+- Added a separate `credit_pool` field to the Builder credit ledger, with `builder` and `runtime` pools.
+- Existing ledger rows remain in the Builder pool through a safe default in migration 004.
+- Added independent grant/consume persistence methods for runtime credits.
+- Billing state now returns `builderCreditsBalance` and `runtimeCreditsBalance`; the legacy `creditsBalance` field remains an alias for the Builder pool.
+- In-memory persistence and PostgreSQL persistence use independent running balances and idempotency scopes per pool.
+- Added tests for pool isolation, independent idempotency keys, insufficient balance protection, and migration discovery.
+- No Core, Console, N-AI Chat, or production configuration changes.
 
-1. No payment provider checkout/webhook flow is implemented or enabled.
-2. No scheduled subscription-renewal / failed-payment retry / downgrade worker is implemented.
-3. Monthly credit allocation and period-end expiry are not implemented. The current ledger balance is a global running balance; its period columns alone do not enforce monthly expiration or prevent rollover.
-4. The current ledger is not a per-period credit-lot model. Implement transactional credit lots or an equivalent allocation model before enforcing expiry. Generation refunds should return credits to the original allocation where possible.
-5. Migration `002_builder_billing_credits.sql` is not recorded as applied in the current production database, and the two billing tables were not present in the read-only check. Do not run it until the schema, prices, rollout plan, and tests are reviewed and the user explicitly approves the production migration.
-6. The migration runner and deployment need a separate reviewed rollout procedure. This branch must be tested before any production action.
+## Still blocked — do not launch billing or integrations
 
-## Required tests before billing launch
+1. Define and approve monthly Builder and Runtime credit allowances after measuring actual costs.
+2. Decide whether Builder generation uses only the customer's Core balance, Builder Credits, or an explicitly disclosed combination. Do not silently double-charge.
+3. Implement a transactional credit-lot/expiry model before enabling monthly grants or expiry. The current pool ledger is a running balance and does not enforce monthly expiry.
+4. Implement a metering gateway and connect each first-party app integration to it before charging Runtime Credits.
+5. Implement credential storage and OAuth lifecycle (encrypted API keys, least-privilege scopes, revocation, token refresh) before exposing app integrations.
+6. Implement payment checkout, signed/replay-safe webhooks, renewal retries, cancellation and downgrade lifecycle before enabling payments.
+7. Register and validate GitHub OAuth credentials and callback handling before activating GitHub sync. Keep the entitlement restricted to Pro and Business.
+8. Review and rehearse migration 004 against a disposable Builder-only PostgreSQL database. Never point it at Core.
 
-- Price catalogue and SQL constraints match for every plan and interval.
-- Annual price is charged once upfront; monthly credits are granted once per month using an idempotency key.
-- Monthly credits expire at the period boundary; no rollover or double grant on retries.
-- Consumption cannot spend expired credits or drive a balance negative under concurrent requests.
-- Refunds are idempotent, return credits to the correct period allocation, and report a support reference if persistence fails.
-- Cancellation keeps access until period end and prevents later grants.
-- Failed renewal retries and eventual Free downgrade preserve projects/files.
-- Payment webhooks are authenticated, replay-safe, and cannot grant credits before verified payment.
-- Tests and migration rehearsal run against a disposable Builder-only PostgreSQL database, never the Core database.
+## Required validation before release
+
+- All existing server tests and the frontend production build pass.
+- PostgreSQL migration 004 is discovered and applied transactionally in a disposable database.
+- Both credit pools remain independent under duplicate requests and concurrent consumption.
+- No generation charge is performed until the selected billing policy and corresponding refund behavior are implemented and tested.
+- No runtime integration consumes credits until a metering gateway records an idempotent usage event.
