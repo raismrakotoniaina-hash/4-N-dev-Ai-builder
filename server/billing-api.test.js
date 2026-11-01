@@ -38,6 +38,8 @@ test('billing endpoint is authenticated and returns server-owned prices and Free
   const payload = await response.json();
   assert.equal(payload.billing.subscription.plan, 'free');
   assert.equal(payload.billing.creditsBalance, 0);
+  assert.equal(payload.billing.builderCreditsBalance, 0);
+  assert.equal(payload.billing.runtimeCreditsBalance, 0);
   assert.equal(payload.billing.paymentsEnabled, false);
   assert.equal(payload.billing.renewalEnabled, false);
   const starter = payload.billing.plans.find((plan) => plan.id === 'starter');
