@@ -55,6 +55,21 @@ test('validates saved source files and atomically replaces the preview only afte
   assert.equal(saved.files.find(file => file.path === '__4ndev_preview.html').content, '<html><body>new preview</body></html>');
 });
 
+test('requires a root package manifest before invoking the build worker', async t => {
+  let invoked = false;
+  const { base, cookie, store, user, project } = await setup(t, async () => {
+    invoked = true;
+    return { success: true };
+  });
+  await store.deleteFile(user.id, project.id, 'package.json');
+  const response = await fetch(base + '/api/projects/' + project.id + '/validate', {
+    method: 'POST', headers: { Cookie: cookie }
+  });
+  assert.equal(response.status, 422);
+  assert.match((await response.json()).error, /package.json/);
+  assert.equal(invoked, false);
+});
+
 test('failed validation preserves the last successful preview', async t => {
   const { base, cookie, store, user, project } = await setup(t, async () => {
     const error = new Error('Vite compilation failed.');
