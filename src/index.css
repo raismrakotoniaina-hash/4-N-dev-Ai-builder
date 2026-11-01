@@ -21,3 +21,5 @@
 .balance-panel code{font:11px/1.7 'DM Mono',monospace;color:#a9e9d2;overflow-wrap:anywhere;white-space:pre-wrap}
 .danger-button{margin-left:10px;padding:12px 14px;border:1px solid #60313c;border-radius:10px;background:#2b171d;color:#ffb8bf;font-size:11px;font-weight:700}
 @media(max-width:760px){.settings-card{padding:16px}.settings-card-heading{align-items:flex-start;flex-wrap:wrap}.settings-card-heading>div{min-width:calc(100% - 60px)}.connection-state{margin-left:46px}.danger-button{margin:12px 0 0;display:block}}
+
+.code-editor{display:block;width:100%;min-height:440px;max-height:65vh;resize:vertical;padding:19px;border:0;background:#0c1119;color:#cbd5e7;font:11px/1.8 'DM Mono',monospace;white-space:pre;tab-size:2;outline:none}.code-save-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 15px;border-top:1px solid #252e3d;color:#a9b4c8;font-size:10px}.code-save-bar .primary{padding:9px 13px}@media(max-width:760px){.code-editor{min-height:360px;max-height:55vh;padding:14px;font-size:10px}.code-save-bar{align-items:flex-start;flex-direction:column}.code-save-bar .primary{width:100%}}
