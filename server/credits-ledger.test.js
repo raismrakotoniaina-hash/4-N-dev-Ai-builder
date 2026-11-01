@@ -82,16 +82,19 @@ test('Builder and runtime credits use isolated balances and idempotency scopes',
   assert.equal((await store.getBillingState(user.id)).runtimeCreditsBalance, 775);
 });
 
-test('credit pool names are validated', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), '4n-builder-invalid-pool-test-'));
+test('Builder-only ledger methods cannot be redirected into the Runtime pool', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), '4n-builder-fixed-pool-test-'));
   const store = createPersistence({
     filePath: join(directory, 'state.json'),
     encryptionKey: 'test-encryption-key-that-is-at-least-32-bytes'
   });
   t.after(() => rm(directory, { recursive: true, force: true }));
-  const user = await store.createUser({ email: 'invalid-pool@example.test', password: 'a-long-test-password-123' });
-  await assert.rejects(
-    store.grantCredits({ userId: user.id, amount: 5, creditPool: 'core', idempotencyKey: 'bad-pool', reason: 'Invalid pool' }),
-    /Invalid credit pool/
-  );
+  const user = await store.createUser({ email: 'fixed-pool@example.test', password: 'a-long-test-password-123' });
+  await store.grantCredits({
+    userId: user.id, amount: 5, creditPool: 'runtime',
+    idempotencyKey: 'builder-grant', reason: 'Builder-only grant'
+  });
+  const balances = await store.getBillingState(user.id);
+  assert.equal(balances.builderCreditsBalance, 5);
+  assert.equal(balances.runtimeCreditsBalance, 0);
 });
