@@ -29,6 +29,8 @@ export default function App() {
   const [project, setProject] = useState<Project | null>(null);
   const [files, setFiles] = useState<FileItem[]>([]);
   const [activeFile, setActiveFile] = useState('');
+  const [draftContent, setDraftContent] = useState('');
+  const [savingFile, setSavingFile] = useState(false);
   const [mode, setMode] = useState<Mode>('web');
   const [screen, setScreen] = useState<Screen>('build');
   const [prompt, setPrompt] = useState('');
@@ -88,7 +90,9 @@ export default function App() {
       setProject(result.project);
       const nextFiles = result.project.files || [];
       setFiles(nextFiles);
-      setActiveFile(nextFiles.find(f => f.path !== '__4ndev_preview.html')?.path || '');
+      const firstSource = nextFiles.find(f => f.path !== '__4ndev_preview.html');
+      setActiveFile(firstSource?.path || '');
+      setDraftContent(firstSource?.content || '');
       setScreen('code');
       setError('');
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not open project.'); }
@@ -121,7 +125,20 @@ export default function App() {
     finally { setBusy(false); }
   }
   function startNewProject() {
-    setProject(null); setFiles([]); setActiveFile(''); setPrompt(''); setError(''); setNotice(''); setScreen('build'); setMobileMenu(false);
+    setProject(null); setFiles([]); setActiveFile(''); setDraftContent(''); setPrompt(''); setError(''); setNotice(''); setScreen('build'); setMobileMenu(false);
+  }
+  async function saveCurrentFile() {
+    if (!project || !currentFile || savingFile || draftContent === currentFile.content) return;
+    setSavingFile(true); setError(''); setNotice('');
+    try {
+      const result = await api<{ file: FileItem }>('/api/projects/' + project.id + '/files', {
+        method: 'PUT', body: JSON.stringify({ path: currentFile.path, content: draftContent })
+      });
+      setFiles(previous => previous.map(file => file.path === result.file.path ? result.file : file));
+      setProject(previous => previous ? { ...previous, files: (previous.files || []).map(file => file.path === result.file.path ? result.file : file) } : previous);
+      setNotice('Source saved. Run a new validated build before sharing or publishing this version.');
+    } catch (e) { setError(e instanceof Error ? e.message : 'Could not save this file.'); }
+    finally { setSavingFile(false); }
   }
   async function signOut() {
     try { await api('/api/auth/logout', { method: 'POST', body: JSON.stringify({}) }); } catch {}
@@ -145,9 +162,13 @@ export default function App() {
       const endpoint = paidActive ? 'generate' : 'prototype';
       const result = await api<{ project: Project; usage?: { charged_usd?: number } }>('/api/projects/' + active.id + '/' + endpoint, { method: 'POST', body: JSON.stringify({ prompt: fullPrompt }) });
       const generated = result.project.files || [];
-      setFiles(generated); setActiveFile(generated.find(f => f.path !== '__4ndev_preview.html')?.path || ''); setProject(result.project); await refreshProjects(); setScreen(generated.some(f => f.path === '__4ndev_preview.html') ? 'preview' : 'code');
+      const firstSource = generated.find(f => f.path !== '__4ndev_preview.html');
+      setFiles(generated); setActiveFile(firstSource?.path || ''); setDraftContent(firstSource?.content || ''); setProject(result.project); await refreshProjects(); setScreen(generated.some(f => f.path === '__4ndev_preview.html') ? 'preview' : 'code');
       setNotice(endpoint === 'prototype' ? 'Free prototype created and validated locally. No Core credits were used.' : 'AI generation and isolated build validation completed. Core handles AI billing.');
-    } catch (e) { setError(e instanceof Error ? e.message : 'Generation failed.'); }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Generation failed.');
+      if (files.some(file => file.path !== '__4ndev_preview.html')) setScreen('code');
+    }
     finally { setBusy(false); }
   }
   if (loading) return <main className="loading-screen"><LoaderCircle className="spin" size={28}/><span>Loading your workspace…</span></main>;
@@ -165,5 +186,5 @@ export default function App() {
       {error&&<div className="error-banner">{error}</div>}{notice&&<div className="notice-banner"><CheckCircle2 size={16}/>{notice}</div>}
     </div><p className="privacy-line"><CheckCircle2 size={14}/> Model selection stays developer-controlled. Core determines whether the account has enough credits.</p>
   </section>}
-  {screen==='code'&&<section className="content-page code-page"><div className="page-title-row"><div><span className="composer-kicker">GENERATED PROJECT</span><h1>{project?.name||'Your app'}</h1><p>{sourceFiles.length} files · saved to your workspace</p></div><div className="row-actions">{previewFile&&<button className="primary" onClick={()=>setScreen('preview')}><Monitor size={16}/> Preview app</button>}<button className="secondary" onClick={startNewProject}><Plus size={16}/> New generation</button></div></div>{notice&&<div className="notice-banner"><CheckCircle2 size={16}/>{notice}</div>}{error&&<div className="error-banner">{error}</div>}<div className="code-layout"><aside className="file-list"><div className="file-list-heading"><FolderOpen size={15}/> PROJECT FILES</div>{sourceFiles.map(f=><button key={f.path} className={currentFile?.path===f.path?'file-row active':'file-row'} onClick={()=>setActiveFile(f.path)}><Code2 size={14}/><span>{f.path}</span></button>)}</aside><div className="code-view"><div className="code-toolbar"><span><Terminal size={15}/>{currentFile?.path||'Select a file'}</span><span>{currentFile?.content.length.toLocaleString()||0} chars</span></div><pre><code>{currentFile?.content||'No files returned.'}</code></pre></div></div></section>}{screen==='preview'&&<section className="content-page preview-page"><div className="page-title-row"><div><span className="composer-kicker">LIVE WORKSPACE</span><h1>{project?.name||'Your app'}</h1><p>Preview of the isolated, validated build.</p></div><button className="secondary" onClick={()=>setScreen('code')}><Code2 size={16}/> View source</button></div>{previewFile?<iframe title={(project?.name||'Application')+' preview'} srcDoc={previewFile.content} sandbox="allow-scripts" referrerPolicy="no-referrer" style={{display:'block',width:'100%',height:'min(76vh,900px)',minHeight:480,border:'1px solid #e2e7f0',borderRadius:16,background:'#fff'}}/>:<div className="empty-state"><Monitor size={28}/><b>Preview not available</b><p>This project has no validated preview artifact yet. Run Free Prototype again to build and save the preview.</p><button className="secondary" onClick={()=>setScreen('build')}>Build prototype</button></div>}</section>}</main></div>;
+  {screen==='code'&&<section className="content-page code-page"><div className="page-title-row"><div><span className="composer-kicker">GENERATED PROJECT</span><h1>{project?.name||'Your app'}</h1><p>{sourceFiles.length} files · saved to your workspace</p></div><div className="row-actions">{previewFile&&<button className="primary" onClick={()=>setScreen('preview')}><Monitor size={16}/> Preview app</button>}<button className="secondary" onClick={startNewProject}><Plus size={16}/> New generation</button></div></div>{notice&&<div className="notice-banner"><CheckCircle2 size={16}/>{notice}</div>}{error&&<div className="error-banner">{error}</div>}<div className="code-layout"><aside className="file-list"><div className="file-list-heading"><FolderOpen size={15}/> PROJECT FILES</div>{sourceFiles.map(f=><button key={f.path} className={currentFile?.path===f.path?'file-row active':'file-row'} onClick={()=>{setActiveFile(f.path);setDraftContent(f.content)}}><Code2 size={14}/><span>{f.path}</span></button>)}</aside><div className="code-view"><div className="code-toolbar"><span><Terminal size={15}/>{currentFile?.path||'Select a file'}</span><span>{draftContent.length.toLocaleString()} chars</span></div>{currentFile ? <><textarea className="code-editor" aria-label={'Edit ' + currentFile.path} spellCheck={false} value={draftContent} onChange={event=>setDraftContent(event.target.value)} /><div className="code-save-bar"><span>{draftContent === currentFile.content ? 'All changes saved' : 'Unsaved changes'}</span><button className="primary" onClick={saveCurrentFile} disabled={savingFile || draftContent === currentFile.content}>{savingFile ? <LoaderCircle size={15} className="spin"/> : null}Save file</button></div></> : <div className="empty-state"><Code2 size={28}/><b>No source files available</b><p>Your project and original prompt are preserved. Return to Create app to retry generation.</p><button className="secondary" onClick={()=>setScreen('build')}>Back to prompt</button></div>}</div></div></section>}{screen==='preview'&&<section className="content-page preview-page"><div className="page-title-row"><div><span className="composer-kicker">LIVE WORKSPACE</span><h1>{project?.name||'Your app'}</h1><p>Preview of the isolated, validated build.</p></div><button className="secondary" onClick={()=>setScreen('code')}><Code2 size={16}/> View source</button></div>{previewFile?<iframe title={(project?.name||'Application')+' preview'} srcDoc={previewFile.content} sandbox="allow-scripts" referrerPolicy="no-referrer" style={{display:'block',width:'100%',height:'min(76vh,900px)',minHeight:480,border:'1px solid #e2e7f0',borderRadius:16,background:'#fff'}}/>:<div className="empty-state"><Monitor size={28}/><b>Preview not available</b><p>This project has no validated preview artifact yet. Run Free Prototype again to build and save the preview.</p><button className="secondary" onClick={()=>setScreen('build')}>Build prototype</button></div>}</section>}</main></div>;
 }
