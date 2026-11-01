@@ -288,7 +288,11 @@ export function createPersistence({ filePath = process.env.BUILDER_DATA_FILE || 
         });
       const subscription = candidates[0];
       const ledger = state.creditLedger.filter((item) => item.userId === userId);
-      const latest = ledger.reduce((best, item) => !best || item.sequence > best.sequence ? item : best, null);
+      const latestFor = (creditPool) => ledger
+        .filter((item) => (item.creditPool || 'builder') === creditPool)
+        .reduce((best, item) => !best || item.sequence > best.sequence ? item : best, null);
+      const builderCreditsBalance = latestFor('builder')?.balanceAfter ?? 0;
+      const runtimeCreditsBalance = latestFor('runtime')?.balanceAfter ?? 0;
       return {
         subscription: subscription ? {
           plan: subscription.plan,
@@ -304,22 +308,25 @@ export function createPersistence({ filePath = process.env.BUILDER_DATA_FILE || 
           priceUsdCents: 0, currency: 'USD', periodStart: null, periodEnd: null,
           cancelAtPeriodEnd: false
         },
-        creditsBalance: latest?.balanceAfter ?? 0
+        creditsBalance: builderCreditsBalance,
+        builderCreditsBalance,
+        runtimeCreditsBalance
       };
     });
   }
 
-  async function changeCredits({ userId, amount, idempotencyKey, eventType, reason, projectId = null, jobId = null, periodStart = null, periodEnd = null, metadata = {} }) {
+  async function changeCredits({ userId, amount, idempotencyKey, eventType, reason, creditPool = 'builder', projectId = null, jobId = null, periodStart = null, periodEnd = null, metadata = {} }) {
     if (!Number.isSafeInteger(amount) || amount === 0 || typeof idempotencyKey !== 'string' || !idempotencyKey.trim() || idempotencyKey.length > 200) {
       throw new TypeError('A non-zero integer credit amount and valid idempotency key are required.');
     }
     if (typeof reason !== 'string' || !reason.trim()) throw new TypeError('A credit ledger reason is required.');
+    if (!['builder', 'runtime'].includes(creditPool)) throw new TypeError('Invalid credit pool.');
     if (!['grant', 'reserve', 'charge', 'refund', 'expire', 'adjustment'].includes(eventType)) throw new TypeError('Invalid credit ledger event type.');
     return transact((state) => {
       if (!state.users.some((user) => user.id === userId)) throw new Error('Account not found.');
-      const existing = state.creditLedger.find((item) => item.userId === userId && item.idempotencyKey === idempotencyKey);
+      const existing = state.creditLedger.find((item) => item.userId === userId && (item.creditPool || 'builder') === creditPool && item.idempotencyKey === idempotencyKey);
       if (existing) return { balance: existing.balanceAfter, duplicate: true };
-      const userLedger = state.creditLedger.filter((item) => item.userId === userId);
+      const userLedger = state.creditLedger.filter((item) => item.userId === userId && (item.creditPool || 'builder') === creditPool);
       const current = userLedger.reduce((best, item) => !best || item.sequence > best.sequence ? item : best, null);
       const balance = (current?.balanceAfter ?? 0) + amount;
       if (balance < 0) {
@@ -329,7 +336,7 @@ export function createPersistence({ filePath = process.env.BUILDER_DATA_FILE || 
       }
       state.creditLedger.push({
         sequence: state.creditLedger.reduce((max, item) => Math.max(max, item.sequence || 0), 0) + 1,
-        userId, delta: amount, balanceAfter: balance, eventType, idempotencyKey,
+        userId, creditPool, delta: amount, balanceAfter: balance, eventType, idempotencyKey,
         periodStart, periodEnd, projectId, jobId, reason: reason.trim(), metadata,
         createdAt: new Date().toISOString()
       });
@@ -344,8 +351,18 @@ export function createPersistence({ filePath = process.env.BUILDER_DATA_FILE || 
 
   async function consumeCredits(options) {
     if (!Number.isSafeInteger(options.amount) || options.amount <= 0) throw new TypeError('Consumed credits must be a positive integer.');
-    return changeCredits({ ...options, amount: -options.amount, eventType: 'charge' });
+    return changeCredits({ ...options, creditPool: 'builder', amount: -options.amount, eventType: 'charge' });
   }
 
-  return { createUser, verifyUser, createSession, getUserForSession, deleteSession, connectCoreKey, getCoreKey, disconnectCoreKey, coreConnectionStatus, listProjects, createProject, getProject, updateProject, deleteProject, putFile, putFiles, deleteFile, getBillingState, recordSubscription, grantCredits, consumeCredits };
+  async function grantRuntimeCredits(options) {
+    if (!Number.isSafeInteger(options.amount) || options.amount <= 0) throw new TypeError('Granted credits must be a positive integer.');
+    return changeCredits({ ...options, creditPool: 'runtime', eventType: 'grant' });
+  }
+
+  async function consumeRuntimeCredits(options) {
+    if (!Number.isSafeInteger(options.amount) || options.amount <= 0) throw new TypeError('Consumed credits must be a positive integer.');
+    return changeCredits({ ...options, creditPool: 'runtime', amount: -options.amount, eventType: 'charge' });
+  }
+
+  return { createUser, verifyUser, createSession, getUserForSession, deleteSession, connectCoreKey, getCoreKey, disconnectCoreKey, coreConnectionStatus, listProjects, createProject, getProject, updateProject, deleteProject, putFile, putFiles, deleteFile, getBillingState, recordSubscription, grantCredits, consumeCredits, grantRuntimeCredits, consumeRuntimeCredits };
 }
