@@ -29,8 +29,8 @@ export function createBuildValidationApi({ store, buildValidator }) {
     if (!project) return send(res, 404, { success: false, error: 'Project not found.' });
 
     const files = (project.files || []).filter(file => file.path !== '__4ndev_preview.html');
-    if (files.length < 2) {
-      return send(res, 422, { success: false, error: 'Save at least two source files before building.' });
+    if (files.length < 1) {
+      return send(res, 422, { success: false, error: 'Save at least one source file before building.' });
     }
 
     try {

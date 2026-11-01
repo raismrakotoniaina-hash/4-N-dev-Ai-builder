@@ -71,12 +71,20 @@ test('failed validation preserves the last successful preview', async t => {
   assert.equal(saved.files.find(file => file.path === '__4ndev_preview.html').content, '<html>last good preview</html>');
 });
 
-test('requires authentication and project ownership', async t => {
-  const { base, project } = await setup(t, async () => ({ success: true }));
+test('requires authentication and enforces project ownership', async t => {
+  const { base, project, store } = await setup(t, async () => ({ success: true }));
   const unauthenticated = await fetch(base + '/api/projects/' + project.id + '/validate', { method: 'POST' });
   assert.equal(unauthenticated.status, 401);
-  const missing = await fetch(base + '/api/projects/00000000-0000-4000-8000-000000000000/validate', {
-    method: 'POST', headers: { Cookie: 'builder_session=invalid' }
+
+  const otherUser = await store.createUser({ email: 'other-build@example.test', password: 'another-long-test-password-123' });
+  const otherSession = await store.createSession(otherUser.id);
+  const foreignProject = await fetch(base + '/api/projects/' + project.id + '/validate', {
+    method: 'POST', headers: { Cookie: 'builder_session=' + otherSession.token }
   });
-  assert.equal(missing.status, 401);
+  assert.equal(foreignProject.status, 404);
+
+  const missing = await fetch(base + '/api/projects/00000000-0000-4000-8000-000000000000/validate', {
+    method: 'POST', headers: { Cookie: 'builder_session=' + otherSession.token }
+  });
+  assert.equal(missing.status, 404);
 });
