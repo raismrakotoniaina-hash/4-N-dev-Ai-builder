@@ -27,6 +27,7 @@ Free remains local prototype-only. GitHub entitlement is limited to Pro and Busi
 - Added a separate `credit_pool` field to the Builder credit ledger, with `builder` and `runtime` pools.
 - Existing ledger rows remain in the Builder pool through a safe default in migration 004.
 - Added independent grant/consume persistence methods for runtime credits.
+- Added a server-owned GitHub entitlement map: Pro and Business are enabled; Free and Starter are disabled. This is policy data for server-side integration routes, not an active GitHub OAuth connector.
 - Billing state now returns `builderCreditsBalance` and `runtimeCreditsBalance`; the legacy `creditsBalance` field remains an alias for the Builder pool.
 - In-memory persistence and PostgreSQL persistence use independent running balances and idempotency scopes per pool.
 - Added tests for pool isolation, independent idempotency keys, insufficient balance protection, and migration discovery.
