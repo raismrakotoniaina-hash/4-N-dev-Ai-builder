@@ -13,6 +13,9 @@ A clean, mobile-first workspace for creating Web and native Mobile applications 
 - GitHub integration is not implemented yet. Pro and Business plans are eligible for it when OAuth, repository synchronization, and secure token management are released; the current entitlement is not a working connection.
 - Source files are not considered deployed applications. Project subdomains under 4ndev.dev require a deployment service, DNS automation, TLS, and per-project isolation.
 
+## Authentication protection
+Login, registration, and Core-key verification have per-process IP rate limits. When running multiple Builder instances, configure a shared rate limiter at the trusted reverse proxy or API gateway so limits apply across instances.
+
 ## Local development
 1. Copy .env.example to .env and set VITE_BUILDER_API_URL to the Builder backend URL.
 2. Install dependencies with npm ci.

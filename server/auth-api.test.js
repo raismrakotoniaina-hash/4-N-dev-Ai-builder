@@ -120,3 +120,19 @@ test('rejects traversal paths and too-short passwords', async (t) => {
   });
   assert.equal(fileResponse.status, 400);
 });
+
+test('rate limits repeated login attempts and returns Retry-After', async (t) => {
+  const { baseUrl } = await withServer(t);
+  let last;
+  for (let index = 0; index < 11; index += 1) {
+    last = await fetch(`${baseUrl}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'missing@example.test', password: 'incorrect-password' })
+    });
+    if (index < 10) assert.equal(last.status, 401);
+  }
+  assert.equal(last.status, 429);
+  assert.match(last.headers.get('retry-after') || '', /^\d+$/);
+  assert.match((await last.json()).error, /Too many attempts/i);
+});

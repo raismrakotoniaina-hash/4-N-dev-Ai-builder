@@ -3,6 +3,24 @@ import { randomBytes } from 'node:crypto';
 const COOKIE_NAME = 'builder_session';
 const MAX_BODY_BYTES = 1024 * 1024;
 
+const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
+const RATE_LIMITS = new Map();
+
+function consumeRateLimit(key, limit, now = Date.now()) {
+  let bucket = RATE_LIMITS.get(key);
+  if (!bucket || now - bucket.startedAt >= RATE_LIMIT_WINDOW_MS) {
+    bucket = { startedAt: now, count: 0 };
+    RATE_LIMITS.set(key, bucket);
+  }
+  bucket.count += 1;
+  if (RATE_LIMITS.size > 5000) {
+    for (const [entry, value] of RATE_LIMITS) {
+      if (now - value.startedAt >= RATE_LIMIT_WINDOW_MS) RATE_LIMITS.delete(entry);
+    }
+  }
+  return bucket.count <= limit ? 0 : Math.max(1, Math.ceil((bucket.startedAt + RATE_LIMIT_WINDOW_MS - now) / 1000));
+}
+
 function json(res, status, payload, headers = {}) {
   res.writeHead(status, {
     'Content-Type': 'application/json; charset=utf-8',
@@ -63,6 +81,17 @@ export function createAuthApi({ store, fetchImpl = globalThis.fetch, coreApiUrl 
   return async function handleAuthApi(req, res, url) {
     const method = req.method || 'GET';
     const path = url.pathname;
+    const rateLimit = method === 'POST' && path === '/api/auth/login' ? 10
+      : method === 'POST' && path === '/api/auth/register' ? 5
+        : method === 'POST' && path === '/api/core/connect' ? 5 : 0;
+    if (rateLimit) {
+      const client = req.socket?.remoteAddress || 'unknown';
+      const retryAfter = consumeRateLimit(path + ':' + client, rateLimit);
+      if (retryAfter) return json(res, 429, {
+        success: false,
+        error: 'Too many attempts. Please wait before trying again.'
+      }, { 'Retry-After': String(retryAfter) });
+    }
     const token = readCookie(req.headers.cookie);
     const user = await store.getUserForSession(token);
     try {
