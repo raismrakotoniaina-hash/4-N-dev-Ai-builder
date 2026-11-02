@@ -15,10 +15,10 @@ function coreResponse(service, model) {
   const data = service === 'chat' ? { message: { content: 'A responsive app with clear pages and validation.' } } : { output: JSON.stringify({ files: goodFiles }) };
   return new Response(JSON.stringify({ success: true, service, model, data, usage: { charged_usd: 0.01, currency: 'USD' } }), { status: 200 });
 }
-async function setup(t, fetchImpl, buildValidator = async () => ({ success: true }), coreApiKey, plan = 'starter') {
+async function setup(t, fetchImpl, buildValidator = async () => ({ success: true }), coreApiKey, plan = 'starter', builderCreditsChargingEnabled = false) {
   const dir = await mkdtemp(join(tmpdir(), '4n-generation-core-billing-'));
   const store = createPersistence({ filePath: join(dir, 'state.json'), encryptionKey: 'test-encryption-key-that-is-at-least-32-bytes' });
-  const server = createBuilderServer({ store, fetchImpl, buildValidator, coreApiKey });
+  const server = createBuilderServer({ store, fetchImpl, buildValidator, coreApiKey, builderCreditsChargingEnabled });
   await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
   t.after(async () => { await new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve())); await rm(dir, { recursive: true, force: true }); });
   const base = 'http://127.0.0.1:' + server.address().port;
@@ -103,4 +103,40 @@ test('requires a connected Core key when no server key is configured', async t =
   const response = await fetch(base + '/api/projects/' + project.id + '/generate', { method: 'POST', headers: { Cookie: cookie, 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: 'Build an app' }) });
   assert.equal(response.status, 503);
   assert.match((await response.json()).error, /Connect a 4N DEV Core key/);
+});
+
+test('Builder Credits reserve and settle only after a successful build when explicitly enabled', async t => {
+  const { base, cookie, project, store, user } = await setup(t, async (url, options) => coreResponse(url.endsWith('/v1/chat') ? 'chat' : 'coding', JSON.parse(options.body).model), undefined, API_KEY, 'starter', true);
+  await store.grantCredits({ userId: user.id, amount: 40, idempotencyKey: 'seed-generation-success', reason: 'test grant' });
+  const response = await fetch(base + '/api/projects/' + project.id + '/generate', { method: 'POST', headers: { Cookie: cookie, 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: 'Create a reservation app' }) });
+  const result = await response.json();
+  assert.equal(response.status, 200, JSON.stringify(result));
+  assert.equal(result.creditsCharged, 24);
+  assert.equal((await store.getBillingState(user.id)).builderCreditsBalance, 16);
+});
+
+test('Builder Credits are refunded exactly once when isolated build validation fails', async t => {
+  const { base, cookie, project, store, user } = await setup(t, async url => coreResponse(url.endsWith('/v1/chat') ? 'chat' : 'coding', 'mock-model'), async () => { const e = new Error('Vite build failed.'); e.statusCode = 422; throw e; }, API_KEY, 'starter', true);
+  await store.grantCredits({ userId: user.id, amount: 40, idempotencyKey: 'seed-generation-refund', reason: 'test grant' });
+  const response = await fetch(base + '/api/projects/' + project.id + '/generate', { method: 'POST', headers: { Cookie: cookie, 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: 'Create a reservation app' }) });
+  assert.equal(response.status, 422);
+  assert.equal((await response.json()).refundPending, false);
+  assert.equal((await store.getBillingState(user.id)).builderCreditsBalance, 40);
+});
+
+test('Builder Credits prevent Core calls when the reserved balance is insufficient', async t => {
+  let calls = 0;
+  const { base, cookie, project, store, user } = await setup(t, async () => { calls++; return coreResponse('chat', 'mock-model'); }, undefined, API_KEY, 'starter', true);
+  await store.grantCredits({ userId: user.id, amount: 2, idempotencyKey: 'seed-generation-insufficient', reason: 'test grant' });
+  const response = await fetch(base + '/api/projects/' + project.id + '/generate', { method: 'POST', headers: { Cookie: cookie, 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: 'Create a reservation app' }) });
+  assert.equal(response.status, 402);
+  assert.equal(calls, 0);
+  assert.equal((await store.getBillingState(user.id)).builderCreditsBalance, 2);
+});
+
+test('Builder Credits mode refuses customer Core-key billing when no platform key exists', async t => {
+  const { base, cookie, project } = await setup(t, async () => { throw new Error('Core must not be called.'); }, undefined, undefined, 'starter', true);
+  const response = await fetch(base + '/api/projects/' + project.id + '/generate', { method: 'POST', headers: { Cookie: cookie, 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: 'Create a reservation app' }) });
+  assert.equal(response.status, 503);
+  assert.match((await response.json()).error, /platform Core key/i);
 });
