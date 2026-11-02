@@ -40,7 +40,7 @@ export function createBuilderServer({
 } = {}) {
   const authApi = createAuthApi({ store, fetchImpl, coreApiUrl });
   const billingApi = createBillingApi({ store });
-  const creditQuoteApi = createCreditQuoteApi({ store });
+  const creditQuoteApi = createCreditQuoteApi({ store, coreApiKey, builderCreditsChargingEnabled });
   const generationApi = createGenerationApi({ store, fetchImpl, coreApiUrl, coreApiKey, buildValidator, builderCreditsChargingEnabled });
   const freePrototypeApi = createFreePrototypeApi({ store, buildValidator });
   const buildValidationApi = createBuildValidationApi({ store, buildValidator });
