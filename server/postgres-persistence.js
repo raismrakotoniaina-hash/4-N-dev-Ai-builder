@@ -381,10 +381,32 @@ export function createPostgresPersistence({ pool, encryptionKey = process.env.BU
     } catch (error) { await client.query('ROLLBACK').catch(() => {}); throw error; } finally { client.release(); }
   }
   async function settleBuilderCreditReservation({ userId, jobId }) {
-    const result = await pool.query("UPDATE builder_credit_reservations SET status='settled',updated_at=NOW() WHERE user_id=$1 AND job_id=$2 AND status='reserved' RETURNING status", [userId, jobId]);
-    if (result.rowCount) return { status: 'settled', duplicate: false };
-    const existing = await pool.query('SELECT status FROM builder_credit_reservations WHERE user_id=$1 AND job_id=$2', [userId, jobId]);
-    return existing.rowCount ? { status: existing.rows[0].status, duplicate: true } : { status: 'not_found', duplicate: false };
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query('SELECT id FROM builder_users WHERE id=$1 FOR UPDATE', [userId]);
+      const result = await client.query(
+        "UPDATE builder_credit_reservations SET status='settled',updated_at=NOW() WHERE user_id=$1 AND job_id=$2 AND status='reserved' RETURNING status",
+        [userId, jobId]
+      );
+      if (result.rowCount) {
+        await client.query('COMMIT');
+        return { status: 'settled', duplicate: false };
+      }
+      const existing = await client.query(
+        'SELECT status FROM builder_credit_reservations WHERE user_id=$1 AND job_id=$2',
+        [userId, jobId]
+      );
+      await client.query('COMMIT');
+      return existing.rowCount
+        ? { status: existing.rows[0].status, duplicate: true }
+        : { status: 'not_found', duplicate: false };
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw error;
+    } finally {
+      client.release();
+    }
   }
   async function refundBuilderCreditReservation({ userId, jobId, reason = 'AI generation failed' }) {
     const client = await pool.connect();
