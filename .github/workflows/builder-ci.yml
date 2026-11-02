@@ -12,6 +12,22 @@ permissions:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: builder_test
+          POSTGRES_PASSWORD: builder_test
+          POSTGRES_DB: builder_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U builder_test -d builder_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://builder_test:builder_test@localhost:5432/builder_test
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -24,5 +40,7 @@ jobs:
         run: npm ci
       - name: Run server tests
         run: npm run test:server
+      - name: Run PostgreSQL integration tests
+        run: npm run test:postgres
       - name: Build frontend
         run: npm run build
