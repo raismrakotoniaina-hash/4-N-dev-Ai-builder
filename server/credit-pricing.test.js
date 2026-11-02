@@ -9,6 +9,8 @@ import { createPersistence } from './persistence.js';
 
 test('credit estimates vary by task type and complexity', () => {
   assert.equal(estimateBuilderCredits('Change the button color').totalCredits, 2);
+  assert.equal(estimateBuilderCredits('Change the button color in my app').taskType, 'small_edit');
+  assert.equal(estimateBuilderCredits('Refactor the app architecture').taskType, 'refactor');
   assert.equal(estimateBuilderCredits('Add a new settings page').totalCredits, 5);
   assert.equal(estimateBuilderCredits('Create a contact form with validation').totalCredits, 6);
   assert.equal(estimateBuilderCredits('Create a database API backend').totalCredits, 10);
