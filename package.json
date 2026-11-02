@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "start:server": "node server/index.js",
     "test:server": "node --test server/*.test.js",
+    "test:postgres": "node --test server/postgres.integration.test.js",
     "db:migrate": "node server/migrate.js",
     "start:worker": "node server/build-worker.js"
   },
