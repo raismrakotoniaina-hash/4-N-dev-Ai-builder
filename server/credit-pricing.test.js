@@ -78,7 +78,7 @@ test('authenticated quote endpoint estimates without calling Core or changing ba
   const payload = await response.json();
   assert.equal(payload.quote.totalCredits, 28);
   assert.equal(payload.quote.chargeEnabled, false);
-  assert.match(payload.quote.message, /No credits have been reserved or charged/);
+  assert.match(payload.quote.message, /No Builder Credits are reserved or charged/);
   const balances = await store.getBillingState(user.id);
   assert.equal(balances.builderCreditsBalance, 0);
   assert.equal(balances.runtimeCreditsBalance, 0);
