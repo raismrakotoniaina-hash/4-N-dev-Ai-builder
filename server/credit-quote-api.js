@@ -25,7 +25,7 @@ export function createCreditQuoteApi({
   coreApiKey = process.env.BUILDER_CORE_API_KEY
 }) {
   return async function creditQuoteApi(req, res, url) {
-    const match = url.pathname.match(/^\\/api\\/projects\\/([0-9a-f-]{36})\\/credit-quote$/i);
+    const match = url.pathname.match(/^[/]api[/]projects[/]([0-9a-f-]{36})[/]credit-quote$/i);
     if (!match || req.method !== 'POST') return false;
 
     const user = await store.getUserForSession(cookieValue(req.headers.cookie));
