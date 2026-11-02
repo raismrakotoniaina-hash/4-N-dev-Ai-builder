@@ -3,6 +3,7 @@ import { createPersistence } from './persistence.js';
 import { createConfiguredStore } from './store-factory.js';
 import { createAuthApi } from './auth-api.js';
 import { createBillingApi } from './billing-api.js';
+import { createCreditQuoteApi } from './credit-quote-api.js';
 import { createGenerationApi } from './generation-api.js';
 import { createFreePrototypeApi } from './free-prototype-api.js';
 import { createBuildValidationApi } from './build-validation-api.js';
@@ -38,6 +39,7 @@ export function createBuilderServer({
 } = {}) {
   const authApi = createAuthApi({ store, fetchImpl, coreApiUrl });
   const billingApi = createBillingApi({ store });
+  const creditQuoteApi = createCreditQuoteApi({ store });
   const generationApi = createGenerationApi({ store, fetchImpl, coreApiUrl, coreApiKey, buildValidator });
   const freePrototypeApi = createFreePrototypeApi({ store, buildValidator });
   const buildValidationApi = createBuildValidationApi({ store, buildValidator });
@@ -101,6 +103,8 @@ export function createBuilderServer({
     if (validation !== false) return;
     const prototype = await freePrototypeApi(req, res, url);
     if (prototype !== false) return;
+    const quote = await creditQuoteApi(req, res, url);
+    if (quote !== false) return;
     const generated = await generationApi(req, res, url);
     if (generated !== false) return;
     const billing = await billingApi(req, res, url);
