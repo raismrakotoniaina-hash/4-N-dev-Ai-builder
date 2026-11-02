@@ -42,6 +42,12 @@ test('billing endpoint is authenticated and returns server-owned prices and Free
   assert.equal(payload.billing.runtimeCreditsBalance, 0);
   assert.equal(payload.billing.paymentsEnabled, false);
   assert.equal(payload.billing.renewalEnabled, false);
+  assert.deepEqual(payload.billing.integrations.github, {
+    available: false,
+    status: 'planned',
+    eligiblePlans: ['pro', 'business'],
+    message: 'GitHub OAuth and repository synchronization are not available yet.'
+  });
   const starter = payload.billing.plans.find((plan) => plan.id === 'starter');
   assert.deepEqual(starter.durations, ['1_month', '3_months', '6_months', '12_months']);
   assert.equal(starter.entitlements.githubIntegration, false);
