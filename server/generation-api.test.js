@@ -49,7 +49,7 @@ test('generation uses four server-selected Core models and saves validated files
   assert.ok(calls.every(c => c.auth === 'Bearer ' + API_KEY));
   assert.equal(result.project.files.length, 2);
   assert.equal(result.billingProvider, '4N DEV Core');
-  assert.equal(result.creditsCharged, undefined);
+  assert.equal(result.creditsCharged, 0);
   assert.equal((await store.getProject(user.id, project.id)).files.length, 2);
 });
 test('Free accounts are denied Core generation before any upstream request', async t => {

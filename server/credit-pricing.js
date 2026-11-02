@@ -8,8 +8,8 @@ const TASK_RULES = Object.freeze([
   { type: 'database_api', base: 10, pattern: /\b(database|data model|schema|api|backend|postgres|postgresql|base de données|endpoint)\b/i },
   { type: 'form', base: 6, pattern: /\b(form|formulaire|validation|checkout form|contact form)\b/i },
   { type: 'new_page', base: 5, pattern: /\b(page|screen|écran|ecran|new page|nouvelle page)\b/i },
-  { type: 'ui_component', base: 3, pattern: /\b(component|composant|navbar|navigation|modal|dialog|table|card|bouton|button)\b/i },
-  { type: 'small_edit', base: 2, pattern: /\b(change|update|edit|fix|modify|changer|modifier|corriger|couleur|color|text|texte|spacing|margin|padding)\b/i }
+  { type: 'small_edit', base: 2, pattern: /\b(change|update|edit|fix|modify|changer|modifier|corriger|couleur|color|text|texte|spacing|margin|padding)\b/i },
+  { type: 'ui_component', base: 3, pattern: /\b(component|composant|navbar|navigation|modal|dialog|table|card|bouton|button)\b/i }
 ]);
 
 const COMPLEXITY_RULES = Object.freeze([
