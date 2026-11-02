@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { validateBuild } from './build-worker-client.js';
 import { ensureMobileProject } from './mobile-project.js';
+import { estimateBuilderCredits } from './credit-pricing.js';
 const COOKIE = 'builder_session';
 const progressByProject = new Map();
 function setProgress(userId, projectId, message, state = 'running') {
@@ -57,7 +58,7 @@ async function callCore(fetchImpl,base,key,service,body){
  let response;try{response=await fetchImpl(base.replace(/\/$/,'')+'/v1/'+service,{method:'POST',headers:{Accept:'application/json','Content-Type':'application/json',Authorization:'Bearer '+key},body:JSON.stringify(body),signal:AbortSignal.timeout(90000)});}catch{const e=new Error('Could not reach 4N DEV Core.');e.statusCode=502;throw e;}
  const p=await response.json().catch(()=>({}));if(!response.ok||p.success!==true){const msg=typeof p.error==='string'?p.error:p.error?.message;const e=new Error(msg||p.message||'Core generation failed.');e.statusCode=response.status===401?401:response.status===402?402:response.status===429?429:response.status>=500?502:400;throw e;}return p;
 }
-export function createGenerationApi({store,fetchImpl=globalThis.fetch,coreApiUrl='https://api.4ndev.dev',coreApiKey=process.env.BUILDER_CORE_API_KEY,buildValidator=validateBuild}){
+export function createGenerationApi({store,fetchImpl=globalThis.fetch,coreApiUrl='https://api.4ndev.dev',coreApiKey=process.env.BUILDER_CORE_API_KEY,buildValidator=validateBuild,builderCreditsChargingEnabled=false}){
  return async function generationApi(req,res,url){
   const statusMatch=url.pathname.match(/^\/api\/projects\/([0-9a-f-]{36})\/generation-status$/i);
   if(statusMatch&&req.method==='GET'){
@@ -76,27 +77,30 @@ export function createGenerationApi({store,fetchImpl=globalThis.fetch,coreApiUrl
   if(!subscription||subscription.plan==='free'||subscription.status!=='active'||!Number.isFinite(Date.parse(subscription.periodEnd))||Date.parse(subscription.periodEnd)<=Date.now()){
    return send(res,403,{success:false,error:'An active paid Builder plan is required for AI generation. Free accounts can create local prototypes.'});
   }
-  let creditJobId=randomUUID();let stage='request-validation';
+  let creditJobId=randomUUID();let stage='request-validation';let reservationActive=false;let reservedCredits=0;
+  let key=null;
+  const refundReservation=async(reason)=>{if(!reservationActive)return {status:'not_reserved'};const result=await store.refundBuilderCreditReservation({userId:user.id,jobId:creditJobId,reason});if(['refunded','settled','not_found'].includes(result.status))reservationActive=false;return result;};
+  const callAndRecord=async(callStage,service,body,projectId)=>{const payload=await callCore(fetchImpl,coreApiUrl,key,service,body);await store.recordCoreUsage({userId:user.id,projectId,jobId:creditJobId,stage:callStage,model:body.model,chargedUsd:payload.usage?.charged_usd==null?null:Number(payload.usage.charged_usd),currency:payload.usage?.currency||'USD',usage:payload.usage||{}});return payload;};
   try{
    const chunks=[];let size=0;for await(const chunk of req){size+=chunk.length;if(size>16000)return send(res,413,{success:false,error:'Generation request is too large.'});chunks.push(chunk);}
    let body;try{body=chunks.length?JSON.parse(Buffer.concat(chunks).toString('utf8')):{};}catch{return send(res,400,{success:false,error:'Request body must be valid JSON.'});}
    const prompt=typeof body.prompt==='string'?body.prompt.trim():'';
    if(!prompt||prompt.length>12000)return send(res,400,{success:false,error:'Describe the app in 1–12,000 characters.'});
    stage='project-lookup';const project=await store.getProject(user.id,m[1]);if(!project)return send(res,404,{success:false,error:'Project not found.'});
-   stage='core-key-lookup';const key=coreApiKey||await store.getCoreKey(user.id);if(!key)return send(res,503,{success:false,error:'Connect a 4N DEV Core key before generating.'});
+   stage='core-key-lookup';if(builderCreditsChargingEnabled&&!coreApiKey)return send(res,503,{success:false,error:'Builder Credits charging requires the platform Core key; customer Core-key billing is not eligible.'});key=coreApiKey||await store.getCoreKey(user.id);if(!key)return send(res,503,{success:false,error:'Connect a 4N DEV Core key before generating.'});
+   if(builderCreditsChargingEnabled){const quote=estimateBuilderCredits(prompt);reservedCredits=quote.totalCredits;try{const reservation=await store.reserveBuilderCredits({userId:user.id,amount:reservedCredits,idempotencyKey:'builder-generation:'+creditJobId,projectId:project.id,jobId:creditJobId,reason:'Builder AI generation',metadata:{pricingVersion:quote.pricingVersion,taskType:quote.taskType}});reservationActive=reservation.status==='reserved';if(!reservationActive)return send(res,409,{success:false,error:'This generation reservation is not available.',jobId:creditJobId});}catch(error){if(error.code==='INSUFFICIENT_CREDITS')return send(res,402,{success:false,error:'Insufficient Builder Credits.',requiredCredits:reservedCredits,balance:billingState.builderCreditsBalance??0});throw error;}}
    setProgress(user.id,m[1],'Voaray ny prompt; manomana ny génération amin’ny 4N Core.');
-   // Core owns the balance and bills each model request. The paid-plan
-   // entitlement is checked above; Builder never debits its legacy credit ledger.
+   // Core usage is metered internally. Builder debits require a platform-owned Core key.
    stage='core-planner';setProgress(user.id,m[1],'Mandrafitra ny application.');
-   const plan=await callCore(fetchImpl,coreApiUrl,key,'chat',{model:PIPELINE.planner,max_output_tokens:700,messages:[
+   const plan=await callAndRecord('planner','chat',{model:PIPELINE.planner,max_output_tokens:700,messages:[
     {role:'system',content:'You are the lead architect of a production web app builder. Convert the user request into a concise implementation plan. Identify pages, features, data entities, validation, security and responsive behavior. No source code.'},
     {role:'user',content:prompt}
-   ]});
+   ]},project.id);
    stage='core-plan-review';setProgress(user.id,m[1],'Manatsara ny drafitry ny application.');
-   const planReview=await callCore(fetchImpl,coreApiUrl,key,'chat',{model:PIPELINE.plannerReview,max_output_tokens:500,messages:[
+   const planReview=await callAndRecord('planner_review','chat',{model:PIPELINE.plannerReview,max_output_tokens:500,messages:[
     {role:'system',content:'Review the app plan for missing requirements, unsafe assumptions and implementation gaps. Return an improved concise plan only.'},
     {role:'user',content:'User request:\n'+prompt+'\n\nDraft plan:\n'+(plan.data?.message?.content||'')}
-   ]});
+   ]},project.id);
    const codingPrompt=[
     'Generate a runnable multi-file React + TypeScript + Vite web app.',
     ...(/target platform:\s*mobile|mobile app|application mobile|react native|expo|android app|ios app/i.test(prompt) ? [ 'The user requested a mobile app. In addition to the buildable root web app, generate an Expo React Native source project under mobile/ with mobile/package.json, mobile/app.json, and mobile/App.tsx. Keep the root package.json Vite buildable; do not add Expo or React Native dependencies to the root package. Use a clear, app-specific mobile screen. The mobile source is not part of the Vite build.' ] : []),
@@ -110,25 +114,26 @@ export function createGenerationApi({store,fetchImpl=globalThis.fetch,coreApiUrl
     'Implementation plan:',planReview.data?.message?.content||plan.data?.message?.content||''
    ].join('\n');
    stage='core-coding';setProgress(user.id,m[1],'Manoratra ny rakitra application.');
-   const result=await callCore(fetchImpl,coreApiUrl,key,'coding',{model:PIPELINE.coder,language:'JSON',max_output_tokens:3000,prompt:codingPrompt});
+   const result=await callAndRecord('coder','coding',{model:PIPELINE.coder,language:'JSON',max_output_tokens:3000,prompt:codingPrompt},project.id);
    stage='core-code-review';setProgress(user.id,m[1],'Manamarina sy manatsara ny kaody.');
-   const review=await callCore(fetchImpl,coreApiUrl,key,'coding',{model:PIPELINE.codeReviewer,language:'JSON',max_output_tokens:3000,prompt:[
+   const review=await callAndRecord('code_reviewer','coding',{model:PIPELINE.codeReviewer,language:'JSON',max_output_tokens:3000,prompt:[
     'Review and improve the generated app files. Return ONLY valid JSON with the same schema {"files":[{"path":"...","content":"..."}]}.',
     'Keep the application requirements and existing file paths where possible. Fix missing imports, obvious type/build errors, incomplete UI and security issues. Return a complete replacement file set, max 20 files.',
     'Original user request:',prompt,
     'Implementation plan:',planReview.data?.message?.content||plan.data?.message?.content||'',
     'Generated files:',JSON.stringify(JSON.parse(result.data?.output?.trim()||'{}'))
-   ].join('\n')});
+   ].join('\n')},project.id);
    setProgress(user.id,m[1],'Manamarina ny rakitra sy ny fiarovana azy.');
-   stage='parse-generated-files';let files;try{files=parseFiles(review.data?.output);files=ensureMobileProject(files,prompt,project.name);}catch(e){logGenerationError({stage,error:e,jobId:creditJobId,projectId:m[1]});setProgress(user.id,m[1],'TSY TAFITA: '+safeDiagnosticMessage(e),'failed');return send(res,502,{success:false,error:safeDiagnosticMessage(e),jobId:creditJobId,usage:result.usage});}
+   stage='parse-generated-files';let files;try{files=parseFiles(review.data?.output);files=ensureMobileProject(files,prompt,project.name);}catch(e){logGenerationError({stage,error:e,jobId:creditJobId,projectId:m[1]});let refundPending=false;try{const refund=await refundReservation('Generated file validation failed');refundPending=refund.status!=='refunded'&&refund.status!=='not_reserved';}catch{refundPending=true;}setProgress(user.id,m[1],'TSY TAFITA: '+safeDiagnosticMessage(e),'failed');return send(res,502,{success:false,error:safeDiagnosticMessage(e),jobId:creditJobId,refundPending,usage:result.usage});}
    setProgress(user.id,m[1],'Manangana sy mitsapa ny application.');
-   stage='isolated-build-validation';let buildResult;try{buildResult=await buildValidator(files);}catch(e){logGenerationError({stage,error:e,jobId:creditJobId,projectId:m[1]});setProgress(user.id,m[1],'TSY TAFITA: tsy nahomby ny build: '+safeDiagnosticMessage(e),'failed');return send(res,e.statusCode||422,{success:false,error:'Generated app failed isolated build validation: '+safeDiagnosticMessage(e),jobId:creditJobId,usage:result.usage});}
+   stage='isolated-build-validation';let buildResult;try{buildResult=await buildValidator(files);}catch(e){logGenerationError({stage,error:e,jobId:creditJobId,projectId:m[1]});let refundPending=false;try{const refund=await refundReservation('Isolated build validation failed');refundPending=refund.status!=='refunded'&&refund.status!=='not_reserved';}catch{refundPending=true;}setProgress(user.id,m[1],'TSY TAFITA: tsy nahomby ny build: '+safeDiagnosticMessage(e),'failed');return send(res,e.statusCode||422,{success:false,error:'Generated app failed isolated build validation: '+safeDiagnosticMessage(e),jobId:creditJobId,refundPending,usage:result.usage});}
    stage='save-generated-files';setProgress(user.id,m[1],'Nahomby ny fanamarinana; mitahiry ny application.');
    const filesToSave=buildResult?.previewHtml?[...files,{path:'__4ndev_preview.html',content:buildResult.previewHtml}]:files;
-   const savedFiles=await store.putFiles(user.id,m[1],filesToSave);if(!savedFiles){setProgress(user.id,m[1],'TSY TAFITA: tsy voatahiry ny rakitra.','failed');return send(res,404,{success:false,error:'Project not found while saving files.'});}
+   const savedFiles=await store.putFiles(user.id,m[1],filesToSave);if(!savedFiles){let refundPending=false;try{const refund=await refundReservation('Project disappeared before generated files were saved');refundPending=refund.status!=='refunded'&&refund.status!=='not_reserved';}catch{refundPending=true;}setProgress(user.id,m[1],'TSY TAFITA: tsy voatahiry ny rakitra.','failed');return send(res,404,{success:false,error:'Project not found while saving files.',refundPending});}
+   if(reservationActive){const settled=await store.settleBuilderCreditReservation({userId:user.id,jobId:creditJobId});if(settled.status!=='settled')throw new Error('Builder credit reservation could not be settled.');reservationActive=false;}
    
    setProgress(user.id,m[1],'VITA: voatahiry sy voamarina ny application.','completed');
-   return send(res,200,{success:true,project:await store.getProject(user.id,m[1]),generatedFiles:files,previewAvailable:Boolean(buildResult?.previewHtml),modelsUsed:Object.values(PIPELINE),billingProvider:'4N DEV Core',usage:{charged_usd:[plan.usage,planReview.usage,result.usage,review.usage].reduce((sum,item)=>sum+Number(item?.charged_usd||0),0),currency:'USD',calls:{planner:plan.usage,plannerReview:planReview.usage,coder:result.usage,codeReviewer:review.usage}}});
-  }catch(e){logGenerationError({stage,error:e,jobId:creditJobId,projectId:m[1]});const safeMessage=safeDiagnosticMessage(e);setProgress(user.id,m[1],'TSY TAFITA: '+(e.statusCode?safeMessage:'Generation failed unexpectedly.'),'failed');return send(res,e.statusCode||502,{success:false,error:e.statusCode?safeMessage:'Generation failed unexpectedly. Reference: '+(creditJobId||'not-assigned'),jobId:creditJobId||null});}
+   return send(res,200,{success:true,project:await store.getProject(user.id,m[1]),generatedFiles:files,previewAvailable:Boolean(buildResult?.previewHtml),modelsUsed:Object.values(PIPELINE),billingProvider:'4N DEV Core',creditsCharged:reservedCredits,usage:{charged_usd:[plan.usage,planReview.usage,result.usage,review.usage].reduce((sum,item)=>sum+Number(item?.charged_usd||0),0),currency:'USD',calls:{planner:plan.usage,plannerReview:planReview.usage,coder:result.usage,codeReviewer:review.usage}}});
+  }catch(e){logGenerationError({stage,error:e,jobId:creditJobId,projectId:m[1]});let refundPending=false;try{const refund=await refundReservation('Generation failed');refundPending=refund.status!=='refunded'&&refund.status!=='not_reserved';}catch{refundPending=true;}const safeMessage=safeDiagnosticMessage(e);setProgress(user.id,m[1],'TSY TAFITA: '+(e.statusCode?safeMessage:'Generation failed unexpectedly.'),'failed');return send(res,e.statusCode||502,{success:false,error:e.statusCode?safeMessage:'Generation failed unexpectedly. Reference: '+(creditJobId||'not-assigned'),jobId:creditJobId||null,refundPending});}
  };
 }

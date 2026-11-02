@@ -31,6 +31,11 @@ Free remains local prototype-only. GitHub entitlement is limited to Pro and Busi
 - Billing state now returns `builderCreditsBalance` and `runtimeCreditsBalance`; the legacy `creditsBalance` field remains an alias for the Builder pool.
 - In-memory persistence and PostgreSQL persistence use independent running balances and idempotency scopes per pool.
 - Added tests for pool isolation, independent idempotency keys, insufficient balance protection, and migration discovery.
+- Added transactional Builder generation reservations with idempotent settlement/refund operations in both JSON and PostgreSQL stores.
+- Added a Builder-only internal Core usage ledger that records per-stage model and reported `charged_usd` without changing Core.
+- Builder debits remain disabled unless `BUILDER_CREDITS_CHARGING_ENABLED=true`; when enabled, generation requires the platform-owned `BUILDER_CORE_API_KEY`, never the customer's Core key, to avoid double billing.
+- Migration 005 creates the reservation state table and internal Core usage ledger; it is not applied to production.
+- No monthly credit grants or quotas are enabled; the feature flag must remain off until allowances, funding, and period expiry are approved.
 - No Core, Console, N-AI Chat, or production configuration changes.
 
 ## Still blocked — do not launch billing or integrations

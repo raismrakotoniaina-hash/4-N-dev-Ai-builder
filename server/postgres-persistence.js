@@ -362,62 +362,6 @@ export function createPostgresPersistence({ pool, encryptionKey = process.env.BU
     return changeCredits({ ...options, creditPool: 'builder', amount: -options.amount, eventType: 'charge' });
   }
 
-
-  async function reserveBuilderCredits({ userId, amount, idempotencyKey, projectId = null, jobId, reason = 'AI generation reservation', metadata = {} }) {
-    if (!Number.isSafeInteger(amount) || amount <= 0 || typeof jobId !== 'string' || !jobId.trim() || typeof idempotencyKey !== 'string' || !idempotencyKey.trim()) throw new TypeError('A positive credit amount, job ID and idempotency key are required.');
-    const client = await pool.connect();
-    try {
-      await client.query('BEGIN');
-      const user = await client.query('SELECT id FROM builder_users WHERE id=$1 FOR UPDATE', [userId]);
-      if (!user.rowCount) throw new Error('Account not found.');
-      const existing = await client.query('SELECT amount,idempotency_key,status,balance_after FROM builder_credit_reservations WHERE user_id=$1 AND job_id=$2 FOR UPDATE', [userId, jobId]);
-      if (existing.rowCount) {
-        const row = existing.rows[0];
-        if (row.amount !== amount || row.idempotency_key !== idempotencyKey) throw new Error('Credit reservation job ID conflict.');
-        await client.query('COMMIT'); return { status: row.status, duplicate: true, balance: row.balance_after };
-      }
-      const current = await client.query("SELECT balance_after FROM builder_credit_ledger WHERE user_id=$1 AND credit_pool='builder' ORDER BY id DESC LIMIT 1", [userId]);
-      const balance = (current.rows[0]?.balance_after ?? 0) - amount;
-      if (balance < 0) { const error = new Error('Insufficient Builder credits.'); error.code = 'INSUFFICIENT_CREDITS'; throw error; }
-      await client.query("INSERT INTO builder_credit_ledger(user_id,credit_pool,delta,balance_after,event_type,idempotency_key,project_id,job_id,reason,metadata) VALUES($1,'builder',$2,$3,'reserve',$4,$5,$6,$7,$8::jsonb)", [userId, -amount, balance, 'reserve:' + jobId, projectId, jobId, String(reason).slice(0, 200), JSON.stringify(metadata)]);
-      await client.query("INSERT INTO builder_credit_reservations(user_id,job_id,amount,idempotency_key,project_id,status,balance_after) VALUES($1,$2,$3,$4,$5,'reserved',$6)", [userId, jobId, amount, idempotencyKey, projectId, balance]);
-      await client.query('COMMIT'); return { status: 'reserved', duplicate: false, balance };
-    } catch (error) { await client.query('ROLLBACK').catch(() => {}); throw error; }
-    finally { client.release(); }
-  }
-
-  async function settleBuilderCreditReservation({ userId, jobId }) {
-    const result = await pool.query("UPDATE builder_credit_reservations SET status='settled',updated_at=NOW() WHERE user_id=$1 AND job_id=$2 AND status='reserved' RETURNING status", [userId, jobId]);
-    if (result.rowCount) return { status: 'settled', duplicate: false };
-    const existing = await pool.query('SELECT status FROM builder_credit_reservations WHERE user_id=$1 AND job_id=$2', [userId, jobId]);
-    return existing.rowCount ? { status: existing.rows[0].status, duplicate: true } : { status: 'not_found', duplicate: false };
-  }
-
-  async function refundBuilderCreditReservation({ userId, jobId, reason = 'AI generation failed' }) {
-    const client = await pool.connect();
-    try {
-      await client.query('BEGIN');
-      const result = await client.query('SELECT * FROM builder_credit_reservations WHERE user_id=$1 AND job_id=$2 FOR UPDATE', [userId, jobId]);
-      if (!result.rowCount) { await client.query('COMMIT'); return { status: 'not_found', duplicate: false }; }
-      const item = result.rows[0];
-      if (item.status === 'refunded' || item.status === 'settled') { await client.query('COMMIT'); return { status: item.status, duplicate: true }; }
-      await client.query('SELECT id FROM builder_users WHERE id=$1 FOR UPDATE', [userId]);
-      const current = await client.query("SELECT balance_after FROM builder_credit_ledger WHERE user_id=$1 AND credit_pool='builder' ORDER BY id DESC LIMIT 1", [userId]);
-      const balance = (current.rows[0]?.balance_after ?? 0) + item.amount;
-      await client.query("INSERT INTO builder_credit_ledger(user_id,credit_pool,delta,balance_after,event_type,idempotency_key,project_id,job_id,reason,metadata) VALUES($1,'builder',$2,$3,'refund',$4,$5,$6,$7,$8::jsonb)", [userId, item.amount, balance, 'refund:' + jobId, item.project_id, jobId, String(reason).slice(0, 200), JSON.stringify({ reservationIdempotencyKey: item.idempotency_key })]);
-      await client.query("UPDATE builder_credit_reservations SET status='refunded',updated_at=NOW() WHERE user_id=$1 AND job_id=$2", [userId, jobId]);
-      await client.query('COMMIT'); return { status: 'refunded', duplicate: false, balance };
-    } catch (error) { await client.query('ROLLBACK').catch(() => {}); throw error; }
-    finally { client.release(); }
-  }
-
-  async function recordCoreUsage({ userId, projectId, jobId, stage, model, chargedUsd = null, currency = 'USD', usage = {} }) {
-    if (!userId || !jobId || !stage || typeof stage !== 'string') throw new TypeError('Core usage requires user, job and stage identifiers.');
-    if (chargedUsd !== null && (!Number.isFinite(Number(chargedUsd)) || Number(chargedUsd) < 0)) throw new TypeError('Core charged amount must be a non-negative number.');
-    const result = await pool.query('INSERT INTO builder_core_usage(user_id,project_id,job_id,stage,model,charged_usd,currency,usage) VALUES($1,$2,$3,$4,$5,$6,$7,$8::jsonb) ON CONFLICT(job_id,stage) DO NOTHING RETURNING id', [userId, projectId, jobId, stage, String(model || '').slice(0, 120), chargedUsd, String(currency || 'USD').slice(0, 3), JSON.stringify(usage)]);
-    return { duplicate: result.rowCount === 0, id: result.rows[0]?.id ?? null };
-  }
-
   async function grantRuntimeCredits(options) {
     if (!Number.isSafeInteger(options.amount) || options.amount <= 0) throw new TypeError('Granted credits must be a positive integer.');
     return changeCredits({ ...options, creditPool: 'runtime', eventType: 'grant' });
@@ -428,5 +372,5 @@ export function createPostgresPersistence({ pool, encryptionKey = process.env.BU
     return changeCredits({ ...options, creditPool: 'runtime', amount: -options.amount, eventType: 'charge' });
   }
 
-  return { createUser, verifyUser, createSession, getUserForSession, deleteSession, connectCoreKey, getCoreKey, disconnectCoreKey, coreConnectionStatus, listProjects, createProject, getProject, updateProject, deleteProject, putFile, putFiles, deleteFile, getBillingState, recordSubscription, grantCredits, consumeCredits, reserveBuilderCredits, settleBuilderCreditReservation, refundBuilderCreditReservation, recordCoreUsage, grantRuntimeCredits, consumeRuntimeCredits };
+  return { createUser, verifyUser, createSession, getUserForSession, deleteSession, connectCoreKey, getCoreKey, disconnectCoreKey, coreConnectionStatus, listProjects, createProject, getProject, updateProject, deleteProject, putFile, putFiles, deleteFile, getBillingState, recordSubscription, grantCredits, consumeCredits, grantRuntimeCredits, consumeRuntimeCredits };
 }

@@ -35,12 +35,13 @@ export function createBuilderServer({
   allowedOrigins = getAllowedOrigins(),
   store = createPersistence(),
   buildValidator = validateBuild,
-  coreApiKey = process.env.BUILDER_CORE_API_KEY
+  coreApiKey = process.env.BUILDER_CORE_API_KEY,
+  builderCreditsChargingEnabled = process.env.BUILDER_CREDITS_CHARGING_ENABLED === 'true'
 } = {}) {
   const authApi = createAuthApi({ store, fetchImpl, coreApiUrl });
   const billingApi = createBillingApi({ store });
   const creditQuoteApi = createCreditQuoteApi({ store });
-  const generationApi = createGenerationApi({ store, fetchImpl, coreApiUrl, coreApiKey, buildValidator });
+  const generationApi = createGenerationApi({ store, fetchImpl, coreApiUrl, coreApiKey, buildValidator, builderCreditsChargingEnabled });
   const freePrototypeApi = createFreePrototypeApi({ store, buildValidator });
   const buildValidationApi = createBuildValidationApi({ store, buildValidator });
   return createServer(async (req, res) => {
