@@ -6,9 +6,11 @@ A clean, mobile-first workspace for creating Web and native Mobile applications 
 - The Builder owns the workspace UI, user projects, generated files, subscription display, and user-facing workflow.
 - 4N DEV Core remains the AI engine and source of model availability and usage. End users do not select pipeline models.
 - The existing backend owns authentication, project persistence, subscription checks, credits, generation, and build validation.
-- Premium generation requires an active paid Builder subscription and sufficient Builder credits. Core balance and usage are separate and remain managed by Core.
+- Premium generation requires an active paid Builder subscription. Generation is billed through the user's connected 4N DEV Core key by default. Builder Credit reservations and deductions are disabled by default and only activate when `BUILDER_CREDITS_CHARGING_ENABLED=true` is configured with a platform-owned `BUILDER_CORE_API_KEY`.
+- Builder Credits and Runtime Credits are separate internal pools. Monthly grants, expiry, rollover, payments, and automatic renewal are not enabled.
 - Web projects target React + TypeScript + Vite; native mobile projects target Expo + React Native.
 - The UI shows the backend's safe error message instead of replacing it with a generic generation failure.
+- GitHub integration is not implemented yet. Pro and Business plans are eligible for it when OAuth, repository synchronization, and secure token management are released; the current entitlement is not a working connection.
 - Source files are not considered deployed applications. Project subdomains under 4ndev.dev require a deployment service, DNS automation, TLS, and per-project isolation.
 
 ## Local development
