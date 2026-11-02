@@ -193,7 +193,7 @@ export default function App() {
         const created = await api<{ project: Project }>('/api/projects', { method: 'POST', body: JSON.stringify({ name: brief.slice(0, 56) || (target === 'mobile' ? 'Mobile app' : 'Web app'), description: brief }) });
         active = created.project; setProject(active); await refreshProjects();
       }
-      const fullPrompt = 'TARGET PLATFORM: ' + (target === 'mobile' ? 'MOBILE. Generate a native Expo React Native app for Android and iOS in the mobile/ directory.' : 'WEB. Generate a responsive React + TypeScript + Vite web app.') + '\\n' + brief;
+      const fullPrompt = 'TARGET PLATFORM: ' + (target === 'mobile' ? 'MOBILE. Generate a native Expo React Native app for Android and iOS in the mobile/ directory.' : 'WEB. Generate a responsive React + TypeScript + Vite web app.') + '\n' + brief;
       const result = await api<{ quote: Omit<CreditQuote, 'prompt' | 'projectId'> }>('/api/projects/' + active.id + '/credit-quote', { method: 'POST', body: JSON.stringify({ prompt: fullPrompt }) });
       setCreditQuote({ ...result.quote, prompt: brief, projectId: active.id });
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not estimate Builder Credits.'); }
