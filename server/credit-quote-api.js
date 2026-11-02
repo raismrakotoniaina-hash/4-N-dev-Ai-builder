@@ -19,9 +19,13 @@ function send(res, status, payload) {
   res.end(JSON.stringify(payload));
 }
 
-export function createCreditQuoteApi({ store }) {
+export function createCreditQuoteApi({
+  store,
+  builderCreditsChargingEnabled = false,
+  coreApiKey = process.env.BUILDER_CORE_API_KEY
+}) {
   return async function creditQuoteApi(req, res, url) {
-    const match = url.pathname.match(/^\/api\/projects\/([0-9a-f-]{36})\/credit-quote$/i);
+    const match = url.pathname.match(/^\\/api\\/projects\\/([0-9a-f-]{36})\\/credit-quote$/i);
     if (!match || req.method !== 'POST') return false;
 
     const user = await store.getUserForSession(cookieValue(req.headers.cookie));
@@ -41,6 +45,10 @@ export function createCreditQuoteApi({ store }) {
     if (!subscription || subscription.plan === 'free' || subscription.status !== 'active'
       || !Number.isFinite(Date.parse(subscription.periodEnd)) || Date.parse(subscription.periodEnd) <= Date.now()) {
       return send(res, 403, { success: false, error: 'An active paid Builder plan is required for an AI generation quote.' });
+    }
+
+    if (builderCreditsChargingEnabled && !coreApiKey) {
+      return send(res, 503, { success: false, error: 'Builder Credits charging is enabled but the platform Core key is not configured.' });
     }
 
     const chunks = [];
@@ -65,13 +73,16 @@ export function createCreditQuoteApi({ store }) {
       return send(res, 400, { success: false, error: error.message });
     }
 
+    const chargeEnabled = builderCreditsChargingEnabled && Boolean(coreApiKey);
     return send(res, 200, {
       success: true,
       quote: {
         ...quote,
         currency: 'Builder Credits',
-        chargeEnabled: false,
-        message: 'Estimate only. No credits have been reserved or charged.'
+        chargeEnabled,
+        message: chargeEnabled
+          ? 'Estimate only. Builder Credits are reserved only after you confirm generation.'
+          : 'Estimate only. No Builder Credits are reserved or charged; generation billing remains managed by 4N DEV Core.'
       }
     });
   };
