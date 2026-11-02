@@ -4,7 +4,8 @@ import {
   BILLING_DURATIONS,
   BUILDER_PLANS,
   getBuilderPlan,
-  getBuilderPriceUsdCents
+  getBuilderPriceUsdCents,
+  hasBuilderEntitlement
 } from './builder-plans.js';
 
 test('server-owned plan catalogue matches all approved USD duration prices', () => {
@@ -32,4 +33,12 @@ test('unknown plans and durations are rejected without fallback pricing', () => 
   assert.equal(getBuilderPriceUsdCents('unknown', '1_month'), null);
   assert.equal(getBuilderPriceUsdCents('starter', 'weekly'), null);
   assert.equal(getBuilderPriceUsdCents('starter', 'monthly'), null);
+});
+
+test('GitHub integration is entitled only for Pro and Business plans', () => {
+  assert.equal(hasBuilderEntitlement('free', 'githubIntegration'), false);
+  assert.equal(hasBuilderEntitlement('starter', 'githubIntegration'), false);
+  assert.equal(hasBuilderEntitlement('pro', 'githubIntegration'), true);
+  assert.equal(hasBuilderEntitlement('business', 'githubIntegration'), true);
+  assert.equal(hasBuilderEntitlement('unknown', 'githubIntegration'), false);
 });

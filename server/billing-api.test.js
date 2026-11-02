@@ -38,10 +38,15 @@ test('billing endpoint is authenticated and returns server-owned prices and Free
   const payload = await response.json();
   assert.equal(payload.billing.subscription.plan, 'free');
   assert.equal(payload.billing.creditsBalance, 0);
+  assert.equal(payload.billing.builderCreditsBalance, 0);
+  assert.equal(payload.billing.runtimeCreditsBalance, 0);
   assert.equal(payload.billing.paymentsEnabled, false);
   assert.equal(payload.billing.renewalEnabled, false);
   const starter = payload.billing.plans.find((plan) => plan.id === 'starter');
   assert.deepEqual(starter.durations, ['1_month', '3_months', '6_months', '12_months']);
+  assert.equal(starter.entitlements.githubIntegration, false);
+  assert.equal(payload.billing.plans.find((plan) => plan.id === 'pro').entitlements.githubIntegration, true);
+  assert.equal(payload.billing.plans.find((plan) => plan.id === 'business').entitlements.githubIntegration, true);
   assert.deepEqual(starter.pricesUsdCents, { '1_month': 1200, '3_months': 3420, '6_months': 6480, '12_months': 10800 });
   assert.deepEqual(payload.billing.plans.find((plan) => plan.id === 'pro').pricesUsdCents, { '1_month': 2500, '3_months': 7125, '6_months': 13500, '12_months': 22800 });
   assert.deepEqual(payload.billing.plans.find((plan) => plan.id === 'business').pricesUsdCents, { '1_month': 5000, '3_months': 14250, '6_months': 27000, '12_months': 48000 });

@@ -5,7 +5,7 @@ import { dirname } from 'node:path';
 import { getBuilderPriceUsdCents } from './builder-plans.js';
 
 const scrypt = promisify(scryptCallback);
-const EMPTY = { users: [], sessions: [], projects: [], subscriptions: [], creditLedger: [] };
+const EMPTY = { users: [], sessions: [], projects: [], subscriptions: [], creditLedger: [], creditReservations: [], coreUsage: [] };
 
 function hash(value) {
   return createHash('sha256').update(value).digest('hex');
@@ -30,7 +30,9 @@ export function createPersistence({ filePath = process.env.BUILDER_DATA_FILE || 
         sessions: Array.isArray(parsed.sessions) ? parsed.sessions : [],
         projects: Array.isArray(parsed.projects) ? parsed.projects : [],
         subscriptions: Array.isArray(parsed.subscriptions) ? parsed.subscriptions : [],
-        creditLedger: Array.isArray(parsed.creditLedger) ? parsed.creditLedger : []
+        creditLedger: Array.isArray(parsed.creditLedger) ? parsed.creditLedger : [],
+        creditReservations: Array.isArray(parsed.creditReservations) ? parsed.creditReservations : [],
+        coreUsage: Array.isArray(parsed.coreUsage) ? parsed.coreUsage : []
       };
     } catch (error) {
       if (error.code === 'ENOENT') return structuredClone(EMPTY);
@@ -288,7 +290,11 @@ export function createPersistence({ filePath = process.env.BUILDER_DATA_FILE || 
         });
       const subscription = candidates[0];
       const ledger = state.creditLedger.filter((item) => item.userId === userId);
-      const latest = ledger.reduce((best, item) => !best || item.sequence > best.sequence ? item : best, null);
+      const latestFor = (creditPool) => ledger
+        .filter((item) => (item.creditPool || 'builder') === creditPool)
+        .reduce((best, item) => !best || item.sequence > best.sequence ? item : best, null);
+      const builderCreditsBalance = latestFor('builder')?.balanceAfter ?? 0;
+      const runtimeCreditsBalance = latestFor('runtime')?.balanceAfter ?? 0;
       return {
         subscription: subscription ? {
           plan: subscription.plan,
@@ -304,22 +310,25 @@ export function createPersistence({ filePath = process.env.BUILDER_DATA_FILE || 
           priceUsdCents: 0, currency: 'USD', periodStart: null, periodEnd: null,
           cancelAtPeriodEnd: false
         },
-        creditsBalance: latest?.balanceAfter ?? 0
+        creditsBalance: builderCreditsBalance,
+        builderCreditsBalance,
+        runtimeCreditsBalance
       };
     });
   }
 
-  async function changeCredits({ userId, amount, idempotencyKey, eventType, reason, projectId = null, jobId = null, periodStart = null, periodEnd = null, metadata = {} }) {
+  async function changeCredits({ userId, amount, idempotencyKey, eventType, reason, creditPool = 'builder', projectId = null, jobId = null, periodStart = null, periodEnd = null, metadata = {} }) {
     if (!Number.isSafeInteger(amount) || amount === 0 || typeof idempotencyKey !== 'string' || !idempotencyKey.trim() || idempotencyKey.length > 200) {
       throw new TypeError('A non-zero integer credit amount and valid idempotency key are required.');
     }
     if (typeof reason !== 'string' || !reason.trim()) throw new TypeError('A credit ledger reason is required.');
+    if (!['builder', 'runtime'].includes(creditPool)) throw new TypeError('Invalid credit pool.');
     if (!['grant', 'reserve', 'charge', 'refund', 'expire', 'adjustment'].includes(eventType)) throw new TypeError('Invalid credit ledger event type.');
     return transact((state) => {
       if (!state.users.some((user) => user.id === userId)) throw new Error('Account not found.');
-      const existing = state.creditLedger.find((item) => item.userId === userId && item.idempotencyKey === idempotencyKey);
+      const existing = state.creditLedger.find((item) => item.userId === userId && (item.creditPool || 'builder') === creditPool && item.idempotencyKey === idempotencyKey);
       if (existing) return { balance: existing.balanceAfter, duplicate: true };
-      const userLedger = state.creditLedger.filter((item) => item.userId === userId);
+      const userLedger = state.creditLedger.filter((item) => item.userId === userId && (item.creditPool || 'builder') === creditPool);
       const current = userLedger.reduce((best, item) => !best || item.sequence > best.sequence ? item : best, null);
       const balance = (current?.balanceAfter ?? 0) + amount;
       if (balance < 0) {
@@ -329,7 +338,7 @@ export function createPersistence({ filePath = process.env.BUILDER_DATA_FILE || 
       }
       state.creditLedger.push({
         sequence: state.creditLedger.reduce((max, item) => Math.max(max, item.sequence || 0), 0) + 1,
-        userId, delta: amount, balanceAfter: balance, eventType, idempotencyKey,
+        userId, creditPool, delta: amount, balanceAfter: balance, eventType, idempotencyKey,
         periodStart, periodEnd, projectId, jobId, reason: reason.trim(), metadata,
         createdAt: new Date().toISOString()
       });
@@ -339,13 +348,70 @@ export function createPersistence({ filePath = process.env.BUILDER_DATA_FILE || 
 
   async function grantCredits(options) {
     if (!Number.isSafeInteger(options.amount) || options.amount <= 0) throw new TypeError('Granted credits must be a positive integer.');
-    return changeCredits({ ...options, eventType: 'grant' });
+    return changeCredits({ ...options, creditPool: 'builder', eventType: 'grant' });
   }
 
   async function consumeCredits(options) {
     if (!Number.isSafeInteger(options.amount) || options.amount <= 0) throw new TypeError('Consumed credits must be a positive integer.');
-    return changeCredits({ ...options, amount: -options.amount, eventType: 'charge' });
+    return changeCredits({ ...options, creditPool: 'builder', amount: -options.amount, eventType: 'charge' });
   }
 
-  return { createUser, verifyUser, createSession, getUserForSession, deleteSession, connectCoreKey, getCoreKey, disconnectCoreKey, coreConnectionStatus, listProjects, createProject, getProject, updateProject, deleteProject, putFile, putFiles, deleteFile, getBillingState, recordSubscription, grantCredits, consumeCredits };
+
+  async function reserveBuilderCredits({ userId, amount, idempotencyKey, projectId = null, jobId, reason = 'AI generation reservation', metadata = {} }) {
+    if (!Number.isSafeInteger(amount) || amount <= 0 || typeof jobId !== 'string' || !jobId.trim() || typeof idempotencyKey !== 'string' || !idempotencyKey.trim()) throw new TypeError('A positive credit amount, job ID and idempotency key are required.');
+    return transact((state) => {
+      if (!state.users.some((user) => user.id === userId)) throw new Error('Account not found.');
+      const existing = state.creditReservations.find((item) => item.userId === userId && item.jobId === jobId);
+      if (existing) { if (existing.amount !== amount || existing.idempotencyKey !== idempotencyKey) throw new Error('Credit reservation job ID conflict.'); return { status: existing.status, duplicate: true, balance: existing.balanceAfter }; }
+      const current = state.creditLedger.filter((item) => item.userId === userId && (item.creditPool || 'builder') === 'builder').reduce((best, item) => !best || item.sequence > best.sequence ? item : best, null);
+      const balance = (current?.balanceAfter ?? 0) - amount;
+      if (balance < 0) { const error = new Error('Insufficient Builder credits.'); error.code = 'INSUFFICIENT_CREDITS'; throw error; }
+      const now = new Date().toISOString();
+      state.creditLedger.push({ sequence: state.creditLedger.reduce((max, item) => Math.max(max, item.sequence || 0), 0) + 1, userId, creditPool: 'builder', delta: -amount, balanceAfter: balance, eventType: 'reserve', idempotencyKey: 'reserve:' + jobId, projectId, jobId, reason: String(reason).slice(0, 200), metadata, createdAt: now });
+      state.creditReservations.push({ userId, jobId, amount, idempotencyKey, projectId, status: 'reserved', balanceAfter: balance, createdAt: now, updatedAt: now });
+      return { status: 'reserved', duplicate: false, balance };
+    });
+  }
+  async function settleBuilderCreditReservation({ userId, jobId }) {
+    return transact((state) => {
+      const item = state.creditReservations.find((entry) => entry.userId === userId && entry.jobId === jobId);
+      if (!item) return { status: 'not_found', duplicate: false };
+      if (item.status === 'settled' || item.status === 'refunded') return { status: item.status, duplicate: true };
+      item.status = 'settled'; item.updatedAt = new Date().toISOString(); return { status: 'settled', duplicate: false };
+    });
+  }
+  async function refundBuilderCreditReservation({ userId, jobId, reason = 'AI generation failed' }) {
+    return transact((state) => {
+      const item = state.creditReservations.find((entry) => entry.userId === userId && entry.jobId === jobId);
+      if (!item) return { status: 'not_found', duplicate: false };
+      if (item.status === 'refunded') return { status: 'refunded', duplicate: true };
+      if (item.status === 'settled') return { status: 'settled', duplicate: false };
+      const current = state.creditLedger.filter((entry) => entry.userId === userId && (entry.creditPool || 'builder') === 'builder').reduce((best, entry) => !best || entry.sequence > best.sequence ? entry : best, null);
+      const balance = (current?.balanceAfter ?? 0) + item.amount;
+      state.creditLedger.push({ sequence: state.creditLedger.reduce((max, entry) => Math.max(max, entry.sequence || 0), 0) + 1, userId, creditPool: 'builder', delta: item.amount, balanceAfter: balance, eventType: 'refund', idempotencyKey: 'refund:' + jobId, projectId: item.projectId, jobId, reason: String(reason).slice(0, 200), metadata: { reservationIdempotencyKey: item.idempotencyKey }, createdAt: new Date().toISOString() });
+      item.status = 'refunded'; item.updatedAt = new Date().toISOString(); return { status: 'refunded', duplicate: false, balance };
+    });
+  }
+  async function recordCoreUsage({ userId, projectId, jobId, stage, model, chargedUsd = null, currency = 'USD', usage = {} }) {
+    if (!userId || !jobId || !stage || typeof stage !== 'string') throw new TypeError('Core usage requires user, job and stage identifiers.');
+    if (chargedUsd !== null && (!Number.isFinite(Number(chargedUsd)) || Number(chargedUsd) < 0)) throw new TypeError('Core charged amount must be a non-negative number.');
+    return transact((state) => {
+      const existing = state.coreUsage.find((item) => item.jobId === jobId && item.stage === stage);
+      if (existing) return { duplicate: true, id: existing.id };
+      const item = { id: randomUUID(), userId, projectId, jobId, stage, model: String(model || '').slice(0, 120), chargedUsd: chargedUsd === null ? null : Number(chargedUsd), currency: String(currency || 'USD').slice(0, 3), usage, createdAt: new Date().toISOString() };
+      state.coreUsage.push(item); return { duplicate: false, id: item.id };
+    });
+  }
+
+  async function grantRuntimeCredits(options) {
+    if (!Number.isSafeInteger(options.amount) || options.amount <= 0) throw new TypeError('Granted credits must be a positive integer.');
+    return changeCredits({ ...options, creditPool: 'runtime', eventType: 'grant' });
+  }
+
+  async function consumeRuntimeCredits(options) {
+    if (!Number.isSafeInteger(options.amount) || options.amount <= 0) throw new TypeError('Consumed credits must be a positive integer.');
+    return changeCredits({ ...options, creditPool: 'runtime', amount: -options.amount, eventType: 'charge' });
+  }
+
+  return { createUser, verifyUser, createSession, getUserForSession, deleteSession, connectCoreKey, getCoreKey, disconnectCoreKey, coreConnectionStatus, listProjects, createProject, getProject, updateProject, deleteProject, putFile, putFiles, deleteFile, getBillingState, recordSubscription, grantCredits, consumeCredits, reserveBuilderCredits, settleBuilderCreditReservation, refundBuilderCreditReservation, recordCoreUsage, grantRuntimeCredits, consumeRuntimeCredits };
 }

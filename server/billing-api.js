@@ -32,7 +32,8 @@ export function createBillingApi({ store }) {
       id: plan.id,
       pricesUsdCents: plan.pricesUsdCents,
       durations: BILLING_DURATIONS,
-      prototypeOnly: plan.prototypeOnly
+      prototypeOnly: plan.prototypeOnly,
+      entitlements: plan.entitlements
     }));
     return send(res, 200, {
       success: true,
