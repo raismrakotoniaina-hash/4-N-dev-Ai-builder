@@ -42,6 +42,14 @@ export function createBillingApi({ store }) {
         plans,
         paymentsEnabled: false,
         renewalEnabled: false,
+        integrations: {
+          github: {
+            available: false,
+            status: 'planned',
+            eligiblePlans: ['pro', 'business'],
+            message: 'GitHub OAuth and repository synchronization are not available yet.'
+          }
+        },
         // Monthly quota issuance/expiry is intentionally reported as disabled
         // until the transactional credit-lot lifecycle and scheduled renewal
         // worker are implemented and tested.
