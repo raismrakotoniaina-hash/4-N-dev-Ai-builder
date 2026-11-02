@@ -2,8 +2,8 @@ const PRICING_VERSION = 'draft-1';
 
 const TASK_RULES = Object.freeze([
   { type: 'mobile_app', base: 30, pattern: /\b(mobile|android|ios|expo|react native|application mobile|app mobile)\b/i },
-  { type: 'full_app', base: 24, pattern: /\b(app|application|web app|website|site web|plateforme|dashboard)\b/i },
   { type: 'refactor', base: 15, pattern: /\b(refactor|refactoring|refonte|restructur|architecture|clean up|cleanup)\b/i },
+  { type: 'full_app', base: 24, pattern: /\b(create|build|develop|generate|make|design|créer|creer|développer|developper)\b.{0,80}\b(app|application|web app|website|site web|plateforme|dashboard)\b|\b(full|complete|entire|complet|complète)\b.{0,40}\b(app|application|website|plateforme)\b/i },
   { type: 'authentication', base: 12, pattern: /\b(auth|authentication|login|log in|sign in|signup|sign up|roles|permissions|connexion|inscription)\b/i },
   { type: 'database_api', base: 10, pattern: /\b(database|data model|schema|api|backend|postgres|postgresql|base de données|endpoint)\b/i },
   { type: 'form', base: 6, pattern: /\b(form|formulaire|validation|checkout form|contact form)\b/i },
