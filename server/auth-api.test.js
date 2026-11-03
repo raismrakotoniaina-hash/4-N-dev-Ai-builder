@@ -4,6 +4,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createBuilderServer } from './index.js';
+import { getClientAddress } from './auth-api.js';
 import { createPersistence } from './persistence.js';
 
 async function withServer(t, options = {}) {
@@ -135,4 +136,13 @@ test('rate limits repeated login attempts and returns Retry-After', async (t) =>
   assert.equal(last.status, 429);
   assert.match(last.headers.get('retry-after') || '', /^\d+$/);
   assert.match((await last.json()).error, /Too many attempts/i);
+});
+
+test('uses forwarded client address only when an explicit trusted-proxy setting is enabled', () => {
+  const request = {
+    headers: { 'x-forwarded-for': '198.51.100.9, 203.0.113.17' },
+    socket: { remoteAddress: '127.0.0.1' }
+  };
+  assert.equal(getClientAddress(request), '127.0.0.1');
+  assert.equal(getClientAddress(request, { trustProxy: true }), '203.0.113.17');
 });

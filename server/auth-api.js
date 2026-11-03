@@ -20,6 +20,17 @@ function consumeRateLimit(rateLimits, key, limit, now = Date.now()) {
   return bucket.count <= limit ? 0 : Math.max(1, Math.ceil((bucket.startedAt + RATE_LIMIT_WINDOW_MS - now) / 1000));
 }
 
+export function getClientAddress(req, { trustProxy = process.env.BUILDER_TRUST_PROXY === 'true' } = {}) {
+  if (trustProxy) {
+    const forwarded = req.headers?.['x-forwarded-for'];
+    if (typeof forwarded === 'string') {
+      const addresses = forwarded.split(',').map(value => value.trim()).filter(Boolean);
+      if (addresses.length) return addresses[addresses.length - 1];
+    }
+  }
+  return req.socket?.remoteAddress || 'unknown';
+}
+
 function json(res, status, payload, headers = {}) {
   res.writeHead(status, {
     'Content-Type': 'application/json; charset=utf-8',
@@ -85,7 +96,7 @@ export function createAuthApi({ store, fetchImpl = globalThis.fetch, coreApiUrl 
       : method === 'POST' && path === '/api/auth/register' ? 5
         : method === 'POST' && path === '/api/core/connect' ? 5 : 0;
     if (rateLimit) {
-      const client = req.socket?.remoteAddress || 'unknown';
+      const client = getClientAddress(req);
       const retryAfter = consumeRateLimit(rateLimits, path + ':' + client, rateLimit);
       if (retryAfter) return json(res, 429, {
         success: false,

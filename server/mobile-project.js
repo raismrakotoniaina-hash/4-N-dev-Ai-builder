@@ -23,7 +23,7 @@ export function ensureMobileProject(files, prompt, projectName = '4N DEV App') {
     {
       path: 'mobile/app.json',
       content: JSON.stringify({
-        expo: { name: String(projectName || '4N DEV App').slice(0, 100), slug, version: '1.0.0', orientation: 'portrait', userInterfaceStyle: 'automatic', ios: { supportsTablet: true }, android: { package: 'dev.4ndev.apps.' + slug.replace(/-/g, '') } }
+        expo: { name: String(projectName || '4N DEV App').slice(0, 100), slug, version: '1.0.0', orientation: 'portrait', userInterfaceStyle: 'automatic', ios: { supportsTablet: true }, android: { package: 'dev.4ndev.apps.app' + slug.replace(/-/g, '') } }
       }, null, 2)
     },
     {

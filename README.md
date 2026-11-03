@@ -14,7 +14,7 @@ A clean, mobile-first workspace for creating Web and native Mobile applications 
 - Source files are not considered deployed applications. Project subdomains under 4ndev.dev require a deployment service, DNS automation, TLS, and per-project isolation.
 
 ## Authentication protection
-Login, registration, and Core-key verification have per-process IP rate limits. When running multiple Builder instances, configure a shared rate limiter at the trusted reverse proxy or API gateway so limits apply across instances.
+Login, registration, and Core-key verification have per-process IP rate limits. When running behind a reverse proxy, set `BUILDER_TRUST_PROXY=true` only after configuring the proxy to overwrite/append `X-Forwarded-For` with the real client address. The Builder uses the rightmost forwarded address. When running multiple Builder instances, configure a shared rate limiter at the trusted reverse proxy or API gateway so limits apply across instances.
 
 ## Local development
 1. Copy .env.example to .env and set VITE_BUILDER_API_URL to the Builder backend URL.
@@ -34,3 +34,12 @@ Before a release, inspect the dedicated Builder database with `npm run db:status
 ## Mobile validation
 
 The CI pipeline exports the generated Expo app for Android with `expo export --platform android`. This validates the Expo JavaScript bundle; it does not create or sign an APK/AAB. A native binary build and device-level testing remain a separate release gate.
+
+
+## Protecting the main branch
+
+The GitHub integration available to this workspace can inspect branch protection but cannot change repository administration settings. An owner must enable protection for `main` in **Settings → Branches → Add branch protection rule** (or Rulesets). Require pull requests before merging, require conversation resolution, block force pushes and deletions, and require these status checks:
+- `AI Builder Build / build-and-test`
+- `Builder CI / build-and-test`
+
+Do not require a check name until it has appeared successfully on a pull request. Keep administrator enforcement enabled where available. Verify the rule after saving; the branch API should report `protected: true`.
