@@ -146,6 +146,10 @@ test('mobile target includes a separate Expo source project while keeping the we
   assert.ok(files.some(file => file.path === 'mobile/package.json'));
   assert.ok(files.some(file => file.path === 'mobile/app.json'));
   assert.ok(files.some(file => file.path === 'mobile/App.tsx'));
+  const mobileApp = files.find(file => file.path === 'mobile/App.tsx').content;
+  assert.match(mobileApp, /TextInput/);
+  assert.match(mobileApp, /FlatList/);
+  assert.match(mobileApp, /toggleTask/);
   assert.equal(JSON.parse(files.find(file => file.path === 'package.json').content).scripts.build, 'tsc -b && vite build');
 });
 

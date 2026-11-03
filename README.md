@@ -13,6 +13,9 @@ A clean, mobile-first workspace for creating Web and native Mobile applications 
 - GitHub integration is not implemented yet. Pro and Business plans are eligible for it when OAuth, repository synchronization, and secure token management are released; the current entitlement is not a working connection.
 - Source files are not considered deployed applications. Project subdomains under 4ndev.dev require a deployment service, DNS automation, TLS, and per-project isolation.
 
+## Authentication protection
+Login, registration, and Core-key verification have per-process IP rate limits. When running behind a reverse proxy, set `BUILDER_TRUST_PROXY=true` only after configuring the proxy to overwrite/append `X-Forwarded-For` with the real client address. The Builder uses the rightmost forwarded address. When running multiple Builder instances, configure a shared rate limiter at the trusted reverse proxy or API gateway so limits apply across instances.
+
 ## Local development
 1. Copy .env.example to .env and set VITE_BUILDER_API_URL to the Builder backend URL.
 2. Install dependencies with npm ci.
@@ -22,3 +25,21 @@ A clean, mobile-first workspace for creating Web and native Mobile applications 
 
 ## Production safety
 Never put Core API keys in Vite variables, browser storage, generated source files, or Git. Configure server-only secrets in /etc/4n-dev-ai-builder/builder.env. Do not run database migrations or replace production until build, server tests, generation tests, and rollback procedures have been reviewed. Core API, Console, and N-AI Chat are separate services and must not be changed by Builder deployment work.
+
+
+## Database migration safety
+
+Before a release, inspect the dedicated Builder database with `npm run db:status`. This command is read-only: it does not create the migration table or apply SQL. If migrations are pending, take and verify a database backup, review the SQL, and run `npm run db:migrate` only as an explicitly approved deployment step. Do not point either command at 4N Core or N-AI Chat databases.
+
+## Mobile validation
+
+The CI pipeline exports the generated Expo app for Android with `expo export --platform android`. This validates the Expo JavaScript bundle; it does not create or sign an APK/AAB. A native binary build and device-level testing remain a separate release gate.
+
+
+## Protecting the main branch
+
+The GitHub integration available to this workspace can inspect branch protection but cannot change repository administration settings. An owner must enable protection for `main` in **Settings → Branches → Add branch protection rule** (or Rulesets). Require pull requests before merging, require conversation resolution, block force pushes and deletions, and require these status checks:
+- `AI Builder Build / build-and-test`
+- `Builder CI / build-and-test`
+
+Do not require a check name until it has appeared successfully on a pull request. Keep administrator enforcement enabled where available. Verify the rule after saving; the branch API should report `protected: true`.

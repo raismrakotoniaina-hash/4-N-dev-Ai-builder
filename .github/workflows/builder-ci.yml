@@ -11,6 +11,7 @@ permissions:
 
 jobs:
   build-and-test:
+    name: Builder CI / build-and-test
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -38,9 +39,13 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
+      - name: Run ESLint
+        run: npm run lint
       - name: Run server tests
         run: npm run test:server
       - name: Run PostgreSQL integration tests
         run: npm run test:postgres
+      - name: Validate Expo Android bundle
+        run: node scripts/validate-mobile.js
       - name: Build frontend
         run: npm run build

@@ -3,6 +3,34 @@ import { randomBytes } from 'node:crypto';
 const COOKIE_NAME = 'builder_session';
 const MAX_BODY_BYTES = 1024 * 1024;
 
+const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
+
+function consumeRateLimit(rateLimits, key, limit, now = Date.now()) {
+  let bucket = rateLimits.get(key);
+  if (!bucket || now - bucket.startedAt >= RATE_LIMIT_WINDOW_MS) {
+    bucket = { startedAt: now, count: 0 };
+    rateLimits.set(key, bucket);
+  }
+  bucket.count += 1;
+  if (rateLimits.size > 5000) {
+    for (const [entry, value] of rateLimits) {
+      if (now - value.startedAt >= RATE_LIMIT_WINDOW_MS) rateLimits.delete(entry);
+    }
+  }
+  return bucket.count <= limit ? 0 : Math.max(1, Math.ceil((bucket.startedAt + RATE_LIMIT_WINDOW_MS - now) / 1000));
+}
+
+export function getClientAddress(req, { trustProxy = process.env.BUILDER_TRUST_PROXY === 'true' } = {}) {
+  if (trustProxy) {
+    const forwarded = req.headers?.['x-forwarded-for'];
+    if (typeof forwarded === 'string') {
+      const addresses = forwarded.split(',').map(value => value.trim()).filter(Boolean);
+      if (addresses.length) return addresses[addresses.length - 1];
+    }
+  }
+  return req.socket?.remoteAddress || 'unknown';
+}
+
 function json(res, status, payload, headers = {}) {
   res.writeHead(status, {
     'Content-Type': 'application/json; charset=utf-8',
@@ -60,9 +88,21 @@ function validPath(value) {
 }
 
 export function createAuthApi({ store, fetchImpl = globalThis.fetch, coreApiUrl = 'https://api.4ndev.dev' }) {
+  const rateLimits = new Map();
   return async function handleAuthApi(req, res, url) {
     const method = req.method || 'GET';
     const path = url.pathname;
+    const rateLimit = method === 'POST' && path === '/api/auth/login' ? 10
+      : method === 'POST' && path === '/api/auth/register' ? 5
+        : method === 'POST' && path === '/api/core/connect' ? 5 : 0;
+    if (rateLimit) {
+      const client = getClientAddress(req);
+      const retryAfter = consumeRateLimit(rateLimits, path + ':' + client, rateLimit);
+      if (retryAfter) return json(res, 429, {
+        success: false,
+        error: 'Too many attempts. Please wait before trying again.'
+      }, { 'Retry-After': String(retryAfter) });
+    }
     const token = readCookie(req.headers.cookie);
     const user = await store.getUserForSession(token);
     try {

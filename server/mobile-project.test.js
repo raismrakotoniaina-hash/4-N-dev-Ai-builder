@@ -8,6 +8,9 @@ test('adds a separate Expo React Native project for a mobile request', () => {
   assert.deepEqual(result.slice(2).map((file) => file.path), ['mobile/package.json', 'mobile/app.json', 'mobile/App.tsx']);
   assert.equal(JSON.parse(result.find((file) => file.path === 'mobile/package.json').content).dependencies.expo, '53.0.20');
   assert.match(result.find((file) => file.path === 'mobile/App.tsx').content, /Expense Tracker/);
+  assert.match(result.find((file) => file.path === 'mobile/App.tsx').content, /TextInput/);
+  assert.match(result.find((file) => file.path === 'mobile/App.tsx').content, /FlatList/);
+  assert.match(result.find((file) => file.path === 'mobile/App.tsx').content, /toggleTask/);
   assert.ok(result.some((file) => file.path === 'package.json' && file.content === '{"name":"web"}'));
 });
 

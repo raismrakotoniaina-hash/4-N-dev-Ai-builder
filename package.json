@@ -12,7 +12,8 @@
     "test:server": "node --test server/*.test.js",
     "test:postgres": "node --test server/postgres.integration.test.js",
     "db:migrate": "node server/migrate.js",
-    "start:worker": "node server/build-worker.js"
+    "start:worker": "node server/build-worker.js",
+    "db:status": "node server/migration-status.js"
   },
   "dependencies": {
     "@vitejs/plugin-react": "6.1.1",
