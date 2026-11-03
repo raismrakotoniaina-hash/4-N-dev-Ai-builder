@@ -7,7 +7,7 @@ const migrationsDirectory = join(here, 'migrations');
 
 export async function inspectMigrationStatus(pool) {
   const files = (await readdir(migrationsDirectory))
-    .filter(name => /^\\d+_[a-z0-9_-]+\\.sql$/.test(name))
+    .filter(name => /^\d+_[a-z0-9_-]+\.sql$/.test(name))
     .sort();
   const table = await pool.query("SELECT to_regclass('public.builder_schema_migrations') AS table_name");
   const exists = Boolean(table.rows[0]?.table_name);
