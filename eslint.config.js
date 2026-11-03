@@ -14,6 +14,8 @@ export default tseslint.config(
     plugins: { 'react-hooks': reactHooks, 'react-refresh': reactRefresh },
     rules: {
       'no-undef': 'off',
+      'no-empty': ['error', { allowEmptyCatch: true }],
+      'no-useless-escape': 'off',
       'no-unused-vars': 'off',
       '@typescript-eslint/no-unused-vars': 'off',
       '@typescript-eslint/no-explicit-any': 'off',
