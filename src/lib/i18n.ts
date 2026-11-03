@@ -352,6 +352,46 @@ const translations: Record<string, Partial<Record<Language, string>>> = {
   "GET A HEAD START": {
     "mg": "ATOMBOHY HAINGANA",
     "fr": "DÉMARRER RAPIDEMENT"
+  },
+  "SaaS dashboard": {
+    "mg": "Dashboard SaaS",
+    "fr": "Tableau de bord SaaS"
+  },
+  "Metrics, team workspace and settings": {
+    "mg": "Statistika, workspace an'ny ekipa ary fikirana",
+    "fr": "Indicateurs, espace d’équipe et paramètres"
+  },
+  "Online store": {
+    "mg": "Fivarotana an-tserasera",
+    "fr": "Boutique en ligne"
+  },
+  "Products, search and shopping cart": {
+    "mg": "Vokatra, fikarohana ary sarety",
+    "fr": "Produits, recherche et panier"
+  },
+  "Task manager": {
+    "mg": "Fitantanana asa",
+    "fr": "Gestionnaire de tâches"
+  },
+  "Tasks, filters and progress": {
+    "mg": "Asa, sivana ary fandrosoana",
+    "fr": "Tâches, filtres et progression"
+  },
+  "1 month": {
+    "mg": "1 volana",
+    "fr": "1 mois"
+  },
+  "3 months": {
+    "mg": "3 volana",
+    "fr": "3 mois"
+  },
+  "6 months": {
+    "mg": "6 volana",
+    "fr": "6 mois"
+  },
+  "1 year": {
+    "mg": "1 taona",
+    "fr": "1 an"
   }
 };
 
