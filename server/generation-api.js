@@ -86,7 +86,7 @@ export function createGenerationApi({store,fetchImpl=globalThis.fetch,coreApiUrl
    const prompt=typeof body.prompt==='string'?body.prompt.trim():'';
    if(!prompt||prompt.length>12000)return send(res,400,{success:false,error:'Describe the app in 1–12,000 characters.'});
    stage='project-lookup';const project=await store.getProject(user.id,m[1]);if(!project)return send(res,404,{success:false,error:'Project not found.'});
-   stage='core-key-lookup';if(paidActive&&builderCreditsChargingEnabled&&!coreApiKey)return send(res,503,{success:false,error:'Builder Credits charging requires the platform Core key; customer Core-key billing is not eligible.'});key=coreApiKey||await store.getCoreKey(user.id);if(!key)return send(res,503,{success:false,error:'4N DEV Core is temporarily unavailable for this account.'});
+   stage='core-key-lookup';if(paidActive&&builderCreditsChargingEnabled&&!coreApiKey)return send(res,503,{success:false,error:'Builder Credits charging requires the platform Core key; customer Core-key billing is not eligible.'});key=paidActive?(coreApiKey||await store.getCoreKey(user.id)):coreApiKey;if(!key)return send(res,503,{success:false,error:'4N DEV Core is temporarily unavailable for this account.'});
    if(!paidActive){
     if(typeof store.reserveFreeGeneration!=='function'||typeof store.releaseFreeGeneration!=='function'||typeof store.putFilesAndCompleteFreeGeneration!=='function')return send(res,503,{success:false,error:'One-time free generation is not configured.'});
     const claim=await store.reserveFreeGeneration({userId:user.id,jobId:creditJobId,projectId:project.id});

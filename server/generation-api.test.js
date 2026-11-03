@@ -52,12 +52,28 @@ test('generation uses four server-selected Core models and saves validated files
   assert.equal(result.creditsCharged, 0);
   assert.equal((await store.getProject(user.id, project.id)).files.length, 2);
 });
+test('Free generation refuses a customer Core key when the platform key is missing', async t => {
+  let coreCalls = 0;
+  const { base, cookie, project, store, user } = await setup(t, async () => {
+    coreCalls++;
+    throw new Error('Core must not be called.');
+  }, undefined, undefined, 'free');
+  const response = await fetch(base + '/api/projects/' + project.id + '/generate', {
+    method: 'POST', headers: { Cookie: cookie, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt: 'Create a free app' })
+  });
+  assert.equal(response.status, 503);
+  assert.match((await response.json()).error, /4N DEV Core is temporarily unavailable/i);
+  assert.equal(coreCalls, 0);
+  assert.equal((await store.getFreeGenerationStatus(user.id)).status, 'available');
+});
+
 test('Free accounts receive one lifetime Core generation across all projects', async t => {
   let coreCalls = 0;
   const { base, cookie, project, store, user } = await setup(t, async (url, options) => {
     coreCalls++;
     return coreResponse(url.endsWith('/v1/chat') ? 'chat' : 'coding', JSON.parse(options.body).model);
-  }, undefined, undefined, 'free');
+  }, undefined, API_KEY, 'free');
   const first = await fetch(base + '/api/projects/' + project.id + '/generate', {
     method: 'POST', headers: { Cookie: cookie, 'Content-Type': 'application/json' },
     body: JSON.stringify({ prompt: 'Create a complete app' })
@@ -98,7 +114,7 @@ test('a failed free Core generation releases the one-time claim for retry', asyn
     buildCalls++;
     if (buildCalls === 1) { const error = new Error('Vite build failed.'); error.statusCode = 422; throw error; }
     return { success: true };
-  }, undefined, 'free');
+  }, API_KEY, 'free');
   const request = () => fetch(base + '/api/projects/' + project.id + '/generate', {
     method: 'POST', headers: { Cookie: cookie, 'Content-Type': 'application/json' },
     body: JSON.stringify({ prompt: 'Create an app' })
