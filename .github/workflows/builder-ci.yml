@@ -11,6 +11,7 @@ permissions:
 
 jobs:
   build-and-test:
+    name: Builder CI / build-and-test
     runs-on: ubuntu-latest
     services:
       postgres:
