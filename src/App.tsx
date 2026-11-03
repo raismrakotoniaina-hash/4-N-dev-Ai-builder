@@ -4,7 +4,7 @@ import { ArrowRight, CheckCircle2, Code2, CreditCard, FolderOpen, LoaderCircle, 
 
 type User = { id: string; email: string };
 type BillingInterval = '1_month' | '3_months' | '6_months' | '12_months';
-type BillingPlan = { id: 'free' | 'starter' | 'pro' | 'business'; pricesUsdCents: Record<BillingInterval, number>; durations: BillingInterval[]; prototypeOnly: boolean };
+type BillingPlan = { id: 'free' | 'starter' | 'pro' | 'business'; pricesUsdCents: Record<BillingInterval, number>; durations: BillingInterval[] };
 type BillingState = { subscription: { plan: 'free' | 'starter' | 'pro' | 'business'; billingInterval: BillingInterval | 'monthly'; status: string; priceUsdCents: number; currency: string; periodStart: string | null; periodEnd: string | null; cancelAtPeriodEnd: boolean }; creditsBalance: number; freeGeneration: { status: 'available' | 'processing' | 'used'; projectId: string | null; usedAt: string | null }; plans: BillingPlan[]; paymentsEnabled: boolean; renewalEnabled: boolean; creditsPolicy: { status: string }; integrations?: { github: { available: boolean; status: string; eligiblePlans: string[]; message: string } } };
 type Project = { id: string; name: string; description?: string; status?: string; updated_at?: string; files?: FileItem[] };
 type FileItem = { path: string; content: string };
