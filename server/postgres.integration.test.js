@@ -29,7 +29,8 @@ test('PostgreSQL migrations, credit reservations, settlement/refund and Core met
     '002_builder_billing_credits.sql',
     '003_builder_billing_durations.sql',
     '004_builder_dual_credit_pools.sql',
-    '005_builder_generation_reservations_and_core_usage.sql'
+    '005_builder_generation_reservations_and_core_usage.sql',
+    '006_builder_one_time_free_core_generation.sql'
   ]);
   assert.deepEqual(await runMigrations(pool), []);
 
@@ -83,6 +84,33 @@ test('PostgreSQL migrations, credit reservations, settlement/refund and Core met
   assert.ok(['settled', 'refunded'].includes(finalReservation.rows[0].status));
   const finalBalance = (await store.getBillingState(userId)).builderCreditsBalance;
   assert.ok(finalBalance === 3 || finalBalance === 10);
+
+  const freeAttempts = await Promise.all([
+    store.reserveFreeGeneration({ userId, projectId, jobId: 'free-generation-a' }),
+    store.reserveFreeGeneration({ userId, projectId, jobId: 'free-generation-b' })
+  ]);
+  assert.equal(freeAttempts.filter(item => item.status === 'reserved').length, 1);
+  assert.equal(freeAttempts.filter(item => item.status === 'processing').length, 1);
+  const freeJob = freeAttempts[0].status === 'reserved' ? 'free-generation-a' : 'free-generation-b';
+  const freeFiles = [{ path: 'package.json', content: '{"scripts":{"build":"vite build"}}' }];
+  assert.ok(await store.putFilesAndCompleteFreeGeneration({ userId, projectId, files: freeFiles, jobId: freeJob }));
+  assert.equal((await store.getFreeGenerationStatus(userId)).status, 'used');
+  assert.equal((await store.reserveFreeGeneration({ userId, projectId, jobId: 'free-generation-c' })).status, 'used');
+
+  const retryUserId = randomUUID();
+  const retryProjectId = randomUUID();
+  await pool.query(
+    'INSERT INTO builder_users(id,email,password_salt,password_hash) VALUES($1,$2,$3,$4)',
+    [retryUserId, retryUserId + '@integration.test', 'salt', 'hash']
+  );
+  await pool.query(
+    'INSERT INTO builder_projects(id,user_id,name) VALUES($1,$2,$3)',
+    [retryProjectId, retryUserId, 'Free retry project']
+  );
+  await store.reserveFreeGeneration({ userId: retryUserId, projectId: retryProjectId, jobId: 'free-retry-failed' });
+  assert.equal((await store.releaseFreeGeneration({ userId: retryUserId, jobId: 'free-retry-failed' })).status, 'released');
+  assert.equal((await store.getFreeGenerationStatus(retryUserId)).status, 'available');
+  assert.equal((await store.reserveFreeGeneration({ userId: retryUserId, projectId: retryProjectId, jobId: 'free-retry-success' })).status, 'reserved');
 
   const usage = {
     userId, projectId, jobId: 'core-usage-integration-job', stage: 'planner',

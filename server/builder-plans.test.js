@@ -21,11 +21,8 @@ test('server-owned plan catalogue matches all approved USD duration prices', () 
   );
 });
 
-test('plans retain the Free prototype-only entitlement', () => {
-  assert.equal(BUILDER_PLANS.free.prototypeOnly, true);
-  assert.equal(BUILDER_PLANS.starter.prototypeOnly, false);
-  assert.equal(BUILDER_PLANS.pro.prototypeOnly, false);
-  assert.equal(BUILDER_PLANS.business.prototypeOnly, false);
+test('plan catalogue no longer advertises template-only Free access', () => {
+  for (const plan of Object.values(BUILDER_PLANS)) assert.equal(Object.hasOwn(plan, 'prototypeOnly'), false);
 });
 
 test('unknown plans and durations are rejected without fallback pricing', () => {

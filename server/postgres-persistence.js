@@ -431,6 +431,120 @@ export function createPostgresPersistence({ pool, encryptionKey = process.env.BU
     return { duplicate: result.rowCount === 0, id: result.rows[0]?.id ?? null };
   }
 
+
+  async function getFreeGenerationStatus(userId) {
+    const result = await pool.query(
+      `SELECT status,project_id,created_at,updated_at,
+        CASE WHEN status='reserved' AND updated_at < NOW() - INTERVAL '30 minutes' THEN 'available'
+             WHEN status='completed' THEN 'used' ELSE 'processing' END AS effective_status
+       FROM builder_free_generation_claims WHERE user_id=$1`,
+      [userId]
+    );
+    const row = result.rows[0];
+    if (!row) return { status: 'available', projectId: null, usedAt: null };
+    return {
+      status: row.effective_status,
+      projectId: row.project_id || null,
+      usedAt: row.effective_status === 'used' ? new Date(row.updated_at).toISOString() : null
+    };
+  }
+
+  async function reserveFreeGeneration({ userId, jobId, projectId = null }) {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const user = await client.query('SELECT id FROM builder_users WHERE id=$1 FOR UPDATE', [userId]);
+      if (!user.rowCount) throw new Error('Account not found.');
+      const existing = await client.query('SELECT job_id,status,updated_at FROM builder_free_generation_claims WHERE user_id=$1 FOR UPDATE', [userId]);
+      if (existing.rowCount) {
+        const row = existing.rows[0];
+        if (row.status === 'completed') {
+          await client.query('COMMIT');
+          return { status: 'used', duplicate: true };
+        }
+        if (Date.now() - new Date(row.updated_at).getTime() <= 30 * 60 * 1000) {
+          await client.query('COMMIT');
+          return { status: 'processing', duplicate: true };
+        }
+        await client.query(
+          'UPDATE builder_free_generation_claims SET job_id=$2,project_id=$3,created_at=NOW(),updated_at=NOW() WHERE user_id=$1',
+          [userId, jobId, projectId]
+        );
+        await client.query('COMMIT');
+        return { status: 'reserved', duplicate: false, reclaimed: true };
+      }
+      await client.query(
+        "INSERT INTO builder_free_generation_claims(user_id,job_id,project_id,status) VALUES($1,$2,$3,'reserved')",
+        [userId, jobId, projectId]
+      );
+      await client.query('COMMIT');
+      return { status: 'reserved', duplicate: false };
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async function releaseFreeGeneration({ userId, jobId }) {
+    const result = await pool.query(
+      "DELETE FROM builder_free_generation_claims WHERE user_id=$1 AND job_id=$2 AND status='reserved' RETURNING job_id",
+      [userId, jobId]
+    );
+    return { status: result.rowCount ? 'released' : 'not_found' };
+  }
+
+  async function putFilesAndCompleteFreeGeneration({ userId, projectId, files, jobId }) {
+    if (!Array.isArray(files) || files.length === 0) throw new TypeError('At least one project file is required.');
+    const seen = new Set();
+    for (const file of files) {
+      if (!file || typeof file.path !== 'string' || !file.path || typeof file.content !== 'string' || seen.has(file.path)) throw new TypeError('Project files must have unique paths and string contents.');
+      seen.add(file.path);
+    }
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const owner = await client.query('SELECT id FROM builder_projects WHERE id=$1 AND user_id=$2 FOR UPDATE', [projectId, userId]);
+      if (!owner.rowCount) {
+        await client.query('ROLLBACK');
+        return null;
+      }
+      const claim = await client.query(
+        "SELECT status FROM builder_free_generation_claims WHERE user_id=$1 AND job_id=$2 FOR UPDATE",
+        [userId, jobId]
+      );
+      if (!claim.rowCount || claim.rows[0].status !== 'reserved') {
+        const error = new Error('The one-time free generation reservation is no longer active.');
+        error.statusCode = 409;
+        throw error;
+      }
+      const saved = [];
+      for (const file of files) {
+        const result = await client.query(
+          `INSERT INTO builder_project_files(project_id,path,content) VALUES($1,$2,$3)
+           ON CONFLICT(project_id,path) DO UPDATE SET content=EXCLUDED.content,updated_at=NOW()
+           RETURNING path,content,updated_at`,
+          [projectId, file.path.replace(/^\/+/, ''), file.content]
+        );
+        const row = result.rows[0];
+        saved.push({ path: row.path, content: row.content, updatedAt: new Date(row.updated_at).toISOString() });
+      }
+      await client.query('UPDATE builder_projects SET updated_at=NOW() WHERE id=$1', [projectId]);
+      await client.query(
+        "UPDATE builder_free_generation_claims SET status='completed',updated_at=NOW() WHERE user_id=$1 AND job_id=$2",
+        [userId, jobId]
+      );
+      await client.query('COMMIT');
+      return saved;
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
   async function grantRuntimeCredits(options) {
     if (!Number.isSafeInteger(options.amount) || options.amount <= 0) throw new TypeError('Granted credits must be a positive integer.');
     return changeCredits({ ...options, creditPool: 'runtime', eventType: 'grant' });
@@ -441,5 +555,5 @@ export function createPostgresPersistence({ pool, encryptionKey = process.env.BU
     return changeCredits({ ...options, creditPool: 'runtime', amount: -options.amount, eventType: 'charge' });
   }
 
-  return { createUser, verifyUser, createSession, getUserForSession, deleteSession, connectCoreKey, getCoreKey, disconnectCoreKey, coreConnectionStatus, listProjects, createProject, getProject, updateProject, deleteProject, putFile, putFiles, deleteFile, getBillingState, recordSubscription, grantCredits, consumeCredits, reserveBuilderCredits, settleBuilderCreditReservation, refundBuilderCreditReservation, recordCoreUsage, grantRuntimeCredits, consumeRuntimeCredits };
+  return { createUser, verifyUser, createSession, getUserForSession, deleteSession, connectCoreKey, getCoreKey, disconnectCoreKey, coreConnectionStatus, listProjects, createProject, getProject, updateProject, deleteProject, putFile, putFiles, deleteFile, getBillingState, recordSubscription, grantCredits, consumeCredits, reserveBuilderCredits, settleBuilderCreditReservation, refundBuilderCreditReservation, recordCoreUsage, getFreeGenerationStatus, reserveFreeGeneration, releaseFreeGeneration, putFilesAndCompleteFreeGeneration, grantRuntimeCredits, consumeRuntimeCredits };
 }

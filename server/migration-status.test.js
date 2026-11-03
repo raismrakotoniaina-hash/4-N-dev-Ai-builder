@@ -16,7 +16,8 @@ test('reports pending migrations without creating the schema tracking table', as
     '002_builder_billing_credits.sql',
     '003_builder_billing_durations.sql',
     '004_builder_dual_credit_pools.sql',
-    '005_builder_generation_reservations_and_core_usage.sql'
+    '005_builder_generation_reservations_and_core_usage.sql',
+    '006_builder_one_time_free_core_generation.sql'
   ]);
   assert.deepEqual(status.unknown, []);
   assert.equal(calls.length, 1);
@@ -34,7 +35,8 @@ test('reports pending and unknown migrations using a read-only query', async () 
     '002_builder_billing_credits.sql',
     '003_builder_billing_durations.sql',
     '004_builder_dual_credit_pools.sql',
-    '005_builder_generation_reservations_and_core_usage.sql'
+    '005_builder_generation_reservations_and_core_usage.sql',
+    '006_builder_one_time_free_core_generation.sql'
   ]);
   assert.deepEqual(status.unknown, ['999_removed_migration.sql']);
 });

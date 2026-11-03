@@ -5,7 +5,7 @@ import { dirname } from 'node:path';
 import { getBuilderPriceUsdCents } from './builder-plans.js';
 
 const scrypt = promisify(scryptCallback);
-const EMPTY = { users: [], sessions: [], projects: [], subscriptions: [], creditLedger: [], creditReservations: [], coreUsage: [] };
+const EMPTY = { users: [], sessions: [], projects: [], subscriptions: [], creditLedger: [], creditReservations: [], coreUsage: [], freeGenerationClaims: [] };
 
 function hash(value) {
   return createHash('sha256').update(value).digest('hex');
@@ -32,7 +32,8 @@ export function createPersistence({ filePath = process.env.BUILDER_DATA_FILE || 
         subscriptions: Array.isArray(parsed.subscriptions) ? parsed.subscriptions : [],
         creditLedger: Array.isArray(parsed.creditLedger) ? parsed.creditLedger : [],
         creditReservations: Array.isArray(parsed.creditReservations) ? parsed.creditReservations : [],
-        coreUsage: Array.isArray(parsed.coreUsage) ? parsed.coreUsage : []
+        coreUsage: Array.isArray(parsed.coreUsage) ? parsed.coreUsage : [],
+        freeGenerationClaims: Array.isArray(parsed.freeGenerationClaims) ? parsed.freeGenerationClaims : []
       };
     } catch (error) {
       if (error.code === 'ENOENT') return structuredClone(EMPTY);
@@ -403,6 +404,88 @@ export function createPersistence({ filePath = process.env.BUILDER_DATA_FILE || 
     });
   }
 
+
+  async function getFreeGenerationStatus(userId) {
+    return view((state) => {
+      const claim = state.freeGenerationClaims.find((item) => item.userId === userId);
+      if (!claim) return { status: 'available', projectId: null, usedAt: null };
+      if (claim.status === 'reserved' && Date.now() - Date.parse(claim.updatedAt) > 30 * 60 * 1000) {
+        return { status: 'available', projectId: claim.projectId || null, usedAt: null };
+      }
+      return {
+        status: claim.status === 'completed' ? 'used' : 'processing',
+        projectId: claim.projectId || null,
+        usedAt: claim.status === 'completed' ? claim.updatedAt : null
+      };
+    });
+  }
+
+  async function reserveFreeGeneration({ userId, jobId, projectId = null }) {
+    return transact((state) => {
+      if (!state.users.some((user) => user.id === userId)) throw new Error('Account not found.');
+      const now = new Date().toISOString();
+      const existing = state.freeGenerationClaims.find((item) => item.userId === userId);
+      if (existing?.status === 'completed') return { status: 'used', duplicate: true };
+      if (existing?.status === 'reserved') {
+        if (Date.now() - Date.parse(existing.updatedAt) <= 30 * 60 * 1000) return { status: 'processing', duplicate: true };
+        existing.jobId = jobId;
+        existing.projectId = projectId;
+        existing.createdAt = now;
+        existing.updatedAt = now;
+        return { status: 'reserved', duplicate: false, reclaimed: true };
+      }
+      state.freeGenerationClaims.push({ userId, jobId, projectId, status: 'reserved', createdAt: now, updatedAt: now });
+      return { status: 'reserved', duplicate: false };
+    });
+  }
+
+  async function releaseFreeGeneration({ userId, jobId }) {
+    return transact((state) => {
+      const index = state.freeGenerationClaims.findIndex((item) => item.userId === userId && item.jobId === jobId && item.status === 'reserved');
+      if (index < 0) return { status: 'not_found' };
+      state.freeGenerationClaims.splice(index, 1);
+      return { status: 'released' };
+    });
+  }
+
+  async function putFilesAndCompleteFreeGeneration({ userId, projectId, files, jobId }) {
+    if (!Array.isArray(files) || files.length === 0) throw new TypeError('At least one project file is required.');
+    const seen = new Set();
+    for (const file of files) {
+      if (!file || typeof file.path !== 'string' || !file.path || typeof file.content !== 'string' || seen.has(file.path)) throw new TypeError('Project files must have unique paths and string contents.');
+      seen.add(file.path);
+    }
+    return transact((state) => {
+      const project = state.projects.find((item) => item.id === projectId && item.userId === userId);
+      if (!project) return null;
+      const claim = state.freeGenerationClaims.find((item) => item.userId === userId && item.jobId === jobId && item.status === 'reserved');
+      if (!claim) {
+        const error = new Error('The one-time free generation reservation is no longer active.');
+        error.statusCode = 409;
+        throw error;
+      }
+      const saved = [];
+      for (const file of files) {
+        const normalizedPath = file.path.replace(/^\/+/, '');
+        const existing = project.files.find((item) => item.path === normalizedPath);
+        const now = new Date().toISOString();
+        if (existing) {
+          existing.content = file.content;
+          existing.updatedAt = now;
+          saved.push(structuredClone(existing));
+        } else {
+          const created = { path: normalizedPath, content: file.content, updatedAt: now };
+          project.files.push(created);
+          saved.push(structuredClone(created));
+        }
+      }
+      project.updatedAt = new Date().toISOString();
+      claim.status = 'completed';
+      claim.updatedAt = project.updatedAt;
+      return saved;
+    });
+  }
+
   async function grantRuntimeCredits(options) {
     if (!Number.isSafeInteger(options.amount) || options.amount <= 0) throw new TypeError('Granted credits must be a positive integer.');
     return changeCredits({ ...options, creditPool: 'runtime', eventType: 'grant' });
@@ -413,5 +496,5 @@ export function createPersistence({ filePath = process.env.BUILDER_DATA_FILE || 
     return changeCredits({ ...options, creditPool: 'runtime', amount: -options.amount, eventType: 'charge' });
   }
 
-  return { createUser, verifyUser, createSession, getUserForSession, deleteSession, connectCoreKey, getCoreKey, disconnectCoreKey, coreConnectionStatus, listProjects, createProject, getProject, updateProject, deleteProject, putFile, putFiles, deleteFile, getBillingState, recordSubscription, grantCredits, consumeCredits, reserveBuilderCredits, settleBuilderCreditReservation, refundBuilderCreditReservation, recordCoreUsage, grantRuntimeCredits, consumeRuntimeCredits };
+  return { createUser, verifyUser, createSession, getUserForSession, deleteSession, connectCoreKey, getCoreKey, disconnectCoreKey, coreConnectionStatus, listProjects, createProject, getProject, updateProject, deleteProject, putFile, putFiles, deleteFile, getBillingState, recordSubscription, grantCredits, consumeCredits, reserveBuilderCredits, settleBuilderCreditReservation, refundBuilderCreditReservation, recordCoreUsage, getFreeGenerationStatus, reserveFreeGeneration, releaseFreeGeneration, putFilesAndCompleteFreeGeneration, grantRuntimeCredits, consumeRuntimeCredits };
 }

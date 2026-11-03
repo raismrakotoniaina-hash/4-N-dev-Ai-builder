@@ -377,6 +377,98 @@ const translations: Record<string, Partial<Record<Language, string>>> = {
     "mg": "Asa, sivana ary fandrosoana",
     "fr": "Tâches, filtres et progression"
   },
+  "Generate with 4N Core": {
+    "mg": "Hamorona amin’ny 4N Core",
+    "fr": "Générer avec 4N Core"
+  },
+  "One free Core generation available": {
+    "mg": "Mbola manana génération iray maimaim-poana amin’ny 4N Core ianao.",
+    "fr": "Une génération gratuite avec 4N Core est disponible."
+  },
+  "Your free generation is in progress.": {
+    "mg": "Efa mandeha ny génération maimaim-poana.",
+    "fr": "Votre génération gratuite est en cours."
+  },
+  "Your one free Core generation has already been used. Choose a paid plan to generate again.": {
+    "mg": "Efa nampiasainao ilay génération maimaim-poana tokana. Misafidiana tolotra misy sarany raha te hamorona indray.",
+    "fr": "Votre génération gratuite unique a déjà été utilisée. Choisissez une offre payante pour continuer."
+  },
+  "Your free Core generation is ready.": {
+    "mg": "Vita ny génération maimaim-poana tamin’ny 4N Core.",
+    "fr": "Votre génération gratuite avec 4N Core est terminée."
+  },
+  "AI generation and build validation completed.": {
+    "mg": "Vita ny génération AI sy ny fanamarinana.",
+    "fr": "La génération IA et la validation du build sont terminées."
+  },
+  "Free plan": {
+    "mg": "Tolotra maimaim-poana",
+    "fr": "Offre gratuite"
+  },
+  "Free generation used": {
+    "mg": "Efa nampiasaina ilay génération maimaim-poana",
+    "fr": "Génération gratuite utilisée"
+  },
+  "Free generation in progress": {
+    "mg": "Mbola mandeha ny génération",
+    "fr": "Génération en cours"
+  },
+  "AI usage and credits are managed by 4N Core.": {
+    "mg": "4N Core no mitantana ny fampiasana AI sy ny crédit.",
+    "fr": "4N Core gère l’utilisation de l’IA et les crédits."
+  },
+  "Support": {
+    "mg": "Fanampiana",
+    "fr": "Assistance"
+  },
+  "WORKSPACE PREFERENCES": {
+    "mg": "SAFIDIN'NY WORKSPACE",
+    "fr": "PRÉFÉRENCES DE L'ESPACE"
+  },
+  "Manage your account and workspace preferences.": {
+    "mg": "Tantano eto ny kaontinao sy ny safidin'ny workspace.",
+    "fr": "Gérez votre compte et les préférences de votre espace."
+  },
+  "Account": {
+    "mg": "Kaonty",
+    "fr": "Compte"
+  },
+  "Your 4N DEV workspace account.": {
+    "mg": "Ny kaontinao ao amin'ny 4N DEV.",
+    "fr": "Votre compte 4N DEV."
+  },
+  "Interface language": {
+    "mg": "Fitenin'ny interface",
+    "fr": "Langue de l'interface"
+  },
+  "Your language choice is saved on this device.": {
+    "mg": "Tehirizina amin'ity fitaovana ity ny safidinao amin'ny fiteny.",
+    "fr": "Votre choix de langue est enregistré sur cet appareil."
+  },
+  "4N DEV HELP CENTER": {
+    "mg": "IVON-TOERAN'NY FANAMPIANA 4N DEV",
+    "fr": "CENTRE D'AIDE 4N DEV"
+  },
+  "Need help with your workspace or an application? Contact our support team.": {
+    "mg": "Mila fanampiana amin'ny workspace na application-nao ve ianao? Mifandraisa amin'ny ekipa mpanohana anay.",
+    "fr": "Besoin d'aide avec votre espace ou une application ? Contactez notre équipe d'assistance."
+  },
+  "Contact 4N DEV support": {
+    "mg": "Mifandraisa amin'ny Support 4N DEV",
+    "fr": "Contacter le support 4N DEV"
+  },
+  "Send us a message and include the project name and a description of the issue.": {
+    "mg": "Alefaso aminay ny hafatrao ary ampidiro ny anaran'ny projet sy ny fanazavana ny olana.",
+    "fr": "Envoyez-nous un message avec le nom du projet et une description du problème."
+  },
+  "Email support": {
+    "mg": "Support amin'ny mailaka",
+    "fr": "Assistance par e-mail"
+  },
+  "Contact support": {
+    "mg": "Hifandray amin'ny Support",
+    "fr": "Contacter l'assistance"
+  },
   "1 month": {
     "mg": "1 volana",
     "fr": "1 mois"

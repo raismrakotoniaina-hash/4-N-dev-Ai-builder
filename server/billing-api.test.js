@@ -40,6 +40,7 @@ test('billing endpoint is authenticated and returns server-owned prices and Free
   assert.equal(payload.billing.creditsBalance, 0);
   assert.equal(payload.billing.builderCreditsBalance, 0);
   assert.equal(payload.billing.runtimeCreditsBalance, 0);
+  assert.deepEqual(payload.billing.freeGeneration, { status: 'available', projectId: null, usedAt: null });
   assert.equal(payload.billing.paymentsEnabled, false);
   assert.equal(payload.billing.renewalEnabled, false);
   assert.deepEqual(payload.billing.integrations.github, {

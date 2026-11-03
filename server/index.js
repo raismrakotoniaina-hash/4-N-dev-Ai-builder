@@ -5,7 +5,6 @@ import { createAuthApi } from './auth-api.js';
 import { createBillingApi } from './billing-api.js';
 import { createCreditQuoteApi } from './credit-quote-api.js';
 import { createGenerationApi } from './generation-api.js';
-import { createFreePrototypeApi } from './free-prototype-api.js';
 import { createBuildValidationApi } from './build-validation-api.js';
 import { validateBuild } from './build-worker-client.js';
 import { CORE_API_URL_DEFAULT, normalizeCoreModels } from './model-catalog.js';
@@ -42,7 +41,6 @@ export function createBuilderServer({
   const billingApi = createBillingApi({ store });
   const creditQuoteApi = createCreditQuoteApi({ store, coreApiKey, builderCreditsChargingEnabled });
   const generationApi = createGenerationApi({ store, fetchImpl, coreApiUrl, coreApiKey, buildValidator, builderCreditsChargingEnabled });
-  const freePrototypeApi = createFreePrototypeApi({ store, buildValidator });
   const buildValidationApi = createBuildValidationApi({ store, buildValidator });
   return createServer(async (req, res) => {
     const origin = req.headers.origin;
@@ -102,8 +100,6 @@ export function createBuilderServer({
 
     const validation = await buildValidationApi(req, res, url);
     if (validation !== false) return;
-    const prototype = await freePrototypeApi(req, res, url);
-    if (prototype !== false) return;
     const quote = await creditQuoteApi(req, res, url);
     if (quote !== false) return;
     const generated = await generationApi(req, res, url);

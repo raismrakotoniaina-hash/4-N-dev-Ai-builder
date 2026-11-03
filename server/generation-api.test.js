@@ -52,17 +52,67 @@ test('generation uses four server-selected Core models and saves validated files
   assert.equal(result.creditsCharged, 0);
   assert.equal((await store.getProject(user.id, project.id)).files.length, 2);
 });
-test('Free accounts are denied Core generation before any upstream request', async t => {
+test('Free accounts receive one lifetime Core generation across all projects', async t => {
   let coreCalls = 0;
-  const { base, cookie, project } = await setup(t, async () => { coreCalls++; throw new Error('Core must not be called for Free.'); }, undefined, undefined, 'free');
-  const response = await fetch(base + '/api/projects/' + project.id + '/generate', {
-    method: 'POST',
-    headers: { Cookie: cookie, 'Content-Type': 'application/json' },
+  const { base, cookie, project, store, user } = await setup(t, async (url, options) => {
+    coreCalls++;
+    return coreResponse(url.endsWith('/v1/chat') ? 'chat' : 'coding', JSON.parse(options.body).model);
+  }, undefined, undefined, 'free');
+  const first = await fetch(base + '/api/projects/' + project.id + '/generate', {
+    method: 'POST', headers: { Cookie: cookie, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt: 'Create a complete app' })
+  });
+  const firstResult = await first.json();
+  assert.equal(first.status, 200, JSON.stringify(firstResult));
+  assert.equal(firstResult.generationMode, 'free_once');
+  assert.equal(firstResult.billingProvider, '4N DEV Core');
+  assert.equal(coreCalls, 4);
+
+  const secondProjectResponse = await fetch(base + '/api/projects', {
+    method: 'POST', headers: { Cookie: cookie, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: 'Second project' })
+  });
+  const secondProject = (await secondProjectResponse.json()).project;
+  const second = await fetch(base + '/api/projects/' + secondProject.id + '/generate', {
+    method: 'POST', headers: { Cookie: cookie, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt: 'Create another app' })
+  });
+  assert.equal(second.status, 403);
+  assert.match((await second.json()).error, /one-time free 4N Core generation/i);
+  assert.equal(coreCalls, 4);
+
+  const billingResponse = await fetch(base + '/api/billing', { headers: { Cookie: cookie } });
+  const billing = await billingResponse.json();
+  assert.equal(billing.billing.freeGeneration.status, 'used');
+  assert.equal(billing.billing.freeGeneration.projectId, project.id);
+  assert.equal((await store.getFreeGenerationStatus(user.id)).status, 'used');
+});
+
+test('a failed free Core generation releases the one-time claim for retry', async t => {
+  let buildCalls = 0;
+  let coreCalls = 0;
+  const { base, cookie, project, store, user } = await setup(t, async (url, options) => {
+    coreCalls++;
+    return coreResponse(url.endsWith('/v1/chat') ? 'chat' : 'coding', JSON.parse(options.body).model);
+  }, async () => {
+    buildCalls++;
+    if (buildCalls === 1) { const error = new Error('Vite build failed.'); error.statusCode = 422; throw error; }
+    return { success: true };
+  }, undefined, 'free');
+  const request = () => fetch(base + '/api/projects/' + project.id + '/generate', {
+    method: 'POST', headers: { Cookie: cookie, 'Content-Type': 'application/json' },
     body: JSON.stringify({ prompt: 'Create an app' })
   });
-  assert.equal(response.status, 403);
-  assert.match((await response.json()).error, /active paid Builder plan/i);
-  assert.equal(coreCalls, 0);
+  const failed = await request();
+  assert.equal(failed.status, 422);
+  assert.equal((await store.getFreeGenerationStatus(user.id)).status, 'available');
+  const retry = await request();
+  const result = await retry.json();
+  assert.equal(retry.status, 200, JSON.stringify(result));
+  assert.equal(result.generationMode, 'free_once');
+  assert.equal(buildCalls, 2);
+  assert.equal(coreCalls, 8);
+  assert.equal((await store.getFreeGenerationStatus(user.id)).status, 'used');
 });
 
 test('does not save generated files when isolated build validation fails', async t => {
@@ -102,7 +152,7 @@ test('requires a connected Core key when no server key is configured', async t =
   const project = (await p.json()).project;
   const response = await fetch(base + '/api/projects/' + project.id + '/generate', { method: 'POST', headers: { Cookie: cookie, 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: 'Build an app' }) });
   assert.equal(response.status, 503);
-  assert.match((await response.json()).error, /Connect a 4N DEV Core key/);
+  assert.match((await response.json()).error, /4N DEV Core is temporarily unavailable/);
 });
 
 test('Builder Credits reserve and settle only after a successful build when explicitly enabled', async t => {
