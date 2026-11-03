@@ -91,7 +91,7 @@ test('PostgreSQL migrations, credit reservations, settlement/refund and Core met
   ]);
   assert.equal(freeAttempts.filter(item => item.status === 'reserved').length, 1);
   assert.equal(freeAttempts.filter(item => item.status === 'processing').length, 1);
-  const freeJob = freeAttempts.find(item => item.status === 'reserved') ? 'free-generation-a' : 'free-generation-b';
+  const freeJob = freeAttempts[0].status === 'reserved' ? 'free-generation-a' : 'free-generation-b';
   const freeFiles = [{ path: 'package.json', content: '{"scripts":{"build":"vite build"}}' }];
   assert.ok(await store.putFilesAndCompleteFreeGeneration({ userId, projectId, files: freeFiles, jobId: freeJob }));
   assert.equal((await store.getFreeGenerationStatus(userId)).status, 'used');
