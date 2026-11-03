@@ -7,7 +7,7 @@ A clean, mobile-first workspace for creating Web and native Mobile applications 
 - 4N DEV Core remains the AI engine and source of model availability and usage. End users do not select pipeline models.
 - The existing backend owns authentication, project persistence, subscription checks, credits, generation, and build validation.
 - There is no local template-based AI fallback: free and paid generation both use 4N DEV Core.
-- Free accounts receive one lifetime generation through the 4N DEV Core pipeline. The entitlement is reserved transactionally and consumed only when the generated files and validated preview are saved; failed generations release the reservation. Deleting a project does not restore the entitlement.
+- Free accounts receive one lifetime generation through the 4N DEV Core pipeline. The entitlement is reserved transactionally and consumed only after generated files are saved following a successful isolated build; failed generations release the reservation. Deleting a project does not restore the entitlement.
 - Further generation requires an active paid Builder subscription. All AI generation runs through the developer-managed 4N DEV Core pipeline; users do not choose models or connect a personal Core key. Builder Credit reservations and deductions remain disabled by default and only activate for paid plans when `BUILDER_CREDITS_CHARGING_ENABLED=true` is configured with a platform-owned `BUILDER_CORE_API_KEY`.
 - Builder Credits and Runtime Credits are separate internal pools. Monthly grants, expiry, rollover, payments, and automatic renewal are not enabled.
 - Web projects target React + TypeScript + Vite; native mobile projects target Expo + React Native.
