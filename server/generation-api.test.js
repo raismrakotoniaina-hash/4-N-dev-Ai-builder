@@ -152,7 +152,7 @@ test('requires a connected Core key when no server key is configured', async t =
   const project = (await p.json()).project;
   const response = await fetch(base + '/api/projects/' + project.id + '/generate', { method: 'POST', headers: { Cookie: cookie, 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: 'Build an app' }) });
   assert.equal(response.status, 503);
-  assert.match((await response.json()).error, /Connect a 4N DEV Core key/);
+  assert.match((await response.json()).error, /4N DEV Core is temporarily unavailable/);
 });
 
 test('Builder Credits reserve and settle only after a successful build when explicitly enabled', async t => {
