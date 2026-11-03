@@ -231,7 +231,13 @@ export default function App() {
       const generated = result.project.files || [];
       const firstSource = generated.find(f => f.path !== '__4ndev_preview.html');
       setFiles(generated); setActiveFile(firstSource?.path || ''); setDraftContent(firstSource?.content || ''); setProject(result.project); await refreshProjects(); setScreen(generated.some(f => f.path === '__4ndev_preview.html') ? 'preview' : 'code');
-      setNotice(endpoint === 'prototype' ? 'Free prototype created and validated locally. No Core credits were used.' : 'AI generation and isolated build validation completed. Core handles AI billing.');
+      setNotice(endpoint === 'prototype'
+        ? target === 'mobile'
+          ? 'Free prototype and Expo mobile source created. The web preview was validated; no APK/AAB is produced.'
+          : 'Free prototype created and validated locally. No Core credits were used.'
+        : target === 'mobile'
+          ? 'AI-generated Expo source saved. The isolated build validates the web preview only; no native APK/AAB is produced. Core handles AI billing.'
+          : 'AI generation and isolated build validation completed. Core handles AI billing.');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Generation failed.');
       if (files.some(file => file.path !== '__4ndev_preview.html')) setScreen('code');
