@@ -417,6 +417,58 @@ const translations: Record<string, Partial<Record<Language, string>>> = {
     "mg": "4N Core no mitantana ny fampiasana AI sy ny crédit.",
     "fr": "4N Core gère l’utilisation de l’IA et les crédits."
   },
+  "Support": {
+    "mg": "Fanampiana",
+    "fr": "Assistance"
+  },
+  "WORKSPACE PREFERENCES": {
+    "mg": "SAFIDIN'NY WORKSPACE",
+    "fr": "PRÉFÉRENCES DE L'ESPACE"
+  },
+  "Manage your account and workspace preferences.": {
+    "mg": "Tantano eto ny kaontinao sy ny safidin'ny workspace.",
+    "fr": "Gérez votre compte et les préférences de votre espace."
+  },
+  "Account": {
+    "mg": "Kaonty",
+    "fr": "Compte"
+  },
+  "Your 4N DEV workspace account.": {
+    "mg": "Ny kaontinao ao amin'ny 4N DEV.",
+    "fr": "Votre compte 4N DEV."
+  },
+  "Interface language": {
+    "mg": "Fitenin'ny interface",
+    "fr": "Langue de l'interface"
+  },
+  "Your language choice is saved on this device.": {
+    "mg": "Tehirizina amin'ity fitaovana ity ny safidinao amin'ny fiteny.",
+    "fr": "Votre choix de langue est enregistré sur cet appareil."
+  },
+  "4N DEV HELP CENTER": {
+    "mg": "IVON-TOERAN'NY FANAMPIANA 4N DEV",
+    "fr": "CENTRE D'AIDE 4N DEV"
+  },
+  "Need help with your workspace or an application? Contact our support team.": {
+    "mg": "Mila fanampiana amin'ny workspace na application-nao ve ianao? Mifandraisa amin'ny ekipa mpanohana anay.",
+    "fr": "Besoin d'aide avec votre espace ou une application ? Contactez notre équipe d'assistance."
+  },
+  "Contact 4N DEV support": {
+    "mg": "Mifandraisa amin'ny Support 4N DEV",
+    "fr": "Contacter le support 4N DEV"
+  },
+  "Send us a message and include the project name and a description of the issue.": {
+    "mg": "Alefaso aminay ny hafatrao ary ampidiro ny anaran'ny projet sy ny fanazavana ny olana.",
+    "fr": "Envoyez-nous un message avec le nom du projet et une description du problème."
+  },
+  "Email support": {
+    "mg": "Support amin'ny mailaka",
+    "fr": "Assistance par e-mail"
+  },
+  "Contact support": {
+    "mg": "Hifandray amin'ny Support",
+    "fr": "Contacter l'assistance"
+  },
   "1 month": {
     "mg": "1 volana",
     "fr": "1 mois"
