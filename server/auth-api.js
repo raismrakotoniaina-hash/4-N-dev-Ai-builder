@@ -4,18 +4,17 @@ const COOKIE_NAME = 'builder_session';
 const MAX_BODY_BYTES = 1024 * 1024;
 
 const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
-const RATE_LIMITS = new Map();
 
-function consumeRateLimit(key, limit, now = Date.now()) {
-  let bucket = RATE_LIMITS.get(key);
+function consumeRateLimit(rateLimits, key, limit, now = Date.now()) {
+  let bucket = rateLimits.get(key);
   if (!bucket || now - bucket.startedAt >= RATE_LIMIT_WINDOW_MS) {
     bucket = { startedAt: now, count: 0 };
-    RATE_LIMITS.set(key, bucket);
+    rateLimits.set(key, bucket);
   }
   bucket.count += 1;
-  if (RATE_LIMITS.size > 5000) {
-    for (const [entry, value] of RATE_LIMITS) {
-      if (now - value.startedAt >= RATE_LIMIT_WINDOW_MS) RATE_LIMITS.delete(entry);
+  if (rateLimits.size > 5000) {
+    for (const [entry, value] of rateLimits) {
+      if (now - value.startedAt >= RATE_LIMIT_WINDOW_MS) rateLimits.delete(entry);
     }
   }
   return bucket.count <= limit ? 0 : Math.max(1, Math.ceil((bucket.startedAt + RATE_LIMIT_WINDOW_MS - now) / 1000));
@@ -78,6 +77,7 @@ function validPath(value) {
 }
 
 export function createAuthApi({ store, fetchImpl = globalThis.fetch, coreApiUrl = 'https://api.4ndev.dev' }) {
+  const rateLimits = new Map();
   return async function handleAuthApi(req, res, url) {
     const method = req.method || 'GET';
     const path = url.pathname;
@@ -86,7 +86,7 @@ export function createAuthApi({ store, fetchImpl = globalThis.fetch, coreApiUrl 
         : method === 'POST' && path === '/api/core/connect' ? 5 : 0;
     if (rateLimit) {
       const client = req.socket?.remoteAddress || 'unknown';
-      const retryAfter = consumeRateLimit(path + ':' + client, rateLimit);
+      const retryAfter = consumeRateLimit(rateLimits, path + ':' + client, rateLimit);
       if (retryAfter) return json(res, 429, {
         success: false,
         error: 'Too many attempts. Please wait before trying again.'
