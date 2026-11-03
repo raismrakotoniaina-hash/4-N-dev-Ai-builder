@@ -44,5 +44,7 @@ jobs:
         run: npm run test:server
       - name: Run PostgreSQL integration tests
         run: npm run test:postgres
+      - name: Validate Expo Android bundle
+        run: node scripts/validate-mobile.js
       - name: Build frontend
         run: npm run build
