@@ -377,6 +377,46 @@ const translations: Record<string, Partial<Record<Language, string>>> = {
     "mg": "Asa, sivana ary fandrosoana",
     "fr": "Tâches, filtres et progression"
   },
+  "Generate with 4N Core": {
+    "mg": "Hamorona amin’ny 4N Core",
+    "fr": "Générer avec 4N Core"
+  },
+  "One free Core generation available": {
+    "mg": "Mbola manana génération iray maimaim-poana amin’ny 4N Core ianao.",
+    "fr": "Une génération gratuite avec 4N Core est disponible."
+  },
+  "Your free generation is in progress.": {
+    "mg": "Efa mandeha ny génération maimaim-poana.",
+    "fr": "Votre génération gratuite est en cours."
+  },
+  "Your one free Core generation has already been used. Choose a paid plan to generate again.": {
+    "mg": "Efa nampiasainao ilay génération maimaim-poana tokana. Misafidiana tolotra misy sarany raha te hamorona indray.",
+    "fr": "Votre génération gratuite unique a déjà été utilisée. Choisissez une offre payante pour continuer."
+  },
+  "Your free Core generation is ready.": {
+    "mg": "Vita ny génération maimaim-poana tamin’ny 4N Core.",
+    "fr": "Votre génération gratuite avec 4N Core est terminée."
+  },
+  "AI generation and build validation completed.": {
+    "mg": "Vita ny génération AI sy ny fanamarinana.",
+    "fr": "La génération IA et la validation du build sont terminées."
+  },
+  "Free plan": {
+    "mg": "Tolotra maimaim-poana",
+    "fr": "Offre gratuite"
+  },
+  "Free generation used": {
+    "mg": "Efa nampiasaina ilay génération maimaim-poana",
+    "fr": "Génération gratuite utilisée"
+  },
+  "Free generation in progress": {
+    "mg": "Mbola mandeha ny génération",
+    "fr": "Génération en cours"
+  },
+  "AI usage and credits are managed by 4N Core.": {
+    "mg": "4N Core no mitantana ny fampiasana AI sy ny crédit.",
+    "fr": "4N Core gère l’utilisation de l’IA et les crédits."
+  },
   "1 month": {
     "mg": "1 volana",
     "fr": "1 mois"
