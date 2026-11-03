@@ -525,7 +525,7 @@ export function createPostgresPersistence({ pool, encryptionKey = process.env.BU
           `INSERT INTO builder_project_files(project_id,path,content) VALUES($1,$2,$3)
            ON CONFLICT(project_id,path) DO UPDATE SET content=EXCLUDED.content,updated_at=NOW()
            RETURNING path,content,updated_at`,
-          [projectId, file.path.replace(/^\\/+/, ''), file.content]
+          [projectId, file.path.replace(/^\/+/, ''), file.content]
         );
         const row = result.rows[0];
         saved.push({ path: row.path, content: row.content, updatedAt: new Date(row.updated_at).toISOString() });
