@@ -25,3 +25,12 @@ Login, registration, and Core-key verification have per-process IP rate limits. 
 
 ## Production safety
 Never put Core API keys in Vite variables, browser storage, generated source files, or Git. Configure server-only secrets in /etc/4n-dev-ai-builder/builder.env. Do not run database migrations or replace production until build, server tests, generation tests, and rollback procedures have been reviewed. Core API, Console, and N-AI Chat are separate services and must not be changed by Builder deployment work.
+
+
+## Database migration safety
+
+Before a release, inspect the dedicated Builder database with `npm run db:status`. This command is read-only: it does not create the migration table or apply SQL. If migrations are pending, take and verify a database backup, review the SQL, and run `npm run db:migrate` only as an explicitly approved deployment step. Do not point either command at 4N Core or N-AI Chat databases.
+
+## Mobile validation
+
+The CI pipeline exports the generated Expo app for Android with `expo export --platform android`. This validates the Expo JavaScript bundle; it does not create or sign an APK/AAB. A native binary build and device-level testing remain a separate release gate.
