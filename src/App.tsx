@@ -157,6 +157,7 @@ export default function App() {
     const brief = text.trim();
     if (!brief) { setError('Soraty aloha izay application tianao hatsangana.'); return; }
     if (!billing) { setError('Subscription status is not available yet. Refresh the workspace before generating.'); return; }
+    if (!paidActive && billing.freeGeneration.status !== 'available') { setError(t(billing.freeGeneration.status === 'processing' ? 'Your free generation is in progress.' : 'Your one free Core generation has already been used. Choose a paid plan to generate again.')); return; }
     setBusy(true); setError(''); setNotice('');
     try {
       let active = project;
@@ -165,11 +166,10 @@ export default function App() {
         active = created.project; setProject(active);
       }
       const fullPrompt = 'TARGET PLATFORM: ' + (target === 'mobile' ? 'MOBILE. Generate a native Expo React Native app for Android and iOS in the mobile/ directory.' : 'WEB. Generate a responsive React + TypeScript + Vite web app.') + '\n' + brief;
-      if (!paidActive && billing.freeGeneration.status !== 'available') throw new Error(t(billing.freeGeneration.status === 'processing' ? 'Your free generation is in progress.' : 'Your one free Core generation has already been used. Choose a paid plan to generate again.'));
       const result = await api<{ project: Project; usage?: { charged_usd?: number }; generationMode?: string }>('/api/projects/' + active.id + '/generate', { method: 'POST', body: JSON.stringify({ prompt: fullPrompt }) });
       const generated = result.project.files || [];
       const firstSource = generated.find(f => f.path !== '__4ndev_preview.html');
-      setFiles(generated); setActiveFile(firstSource?.path || ''); setDraftContent(firstSource?.content || ''); setProject(result.project); await Promise.all([refreshProjects(), refreshBilling()]); setScreen(generated.some(f => f.path === '__4ndev_preview.html') ? 'preview' : 'code');
+      setFiles(generated); setActiveFile(firstSource?.path || ''); setDraftContent(firstSource?.content || ''); setProject(result.project); setScreen(generated.some(f => f.path === '__4ndev_preview.html') ? 'preview' : 'code'); await Promise.allSettled([refreshProjects(), refreshBilling()]);
       setNotice(!paidActive ? t('Your free Core generation is ready.') : t('AI generation and build validation completed.'));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Generation failed.');
