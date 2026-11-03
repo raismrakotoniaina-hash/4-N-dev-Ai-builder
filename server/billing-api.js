@@ -28,6 +28,9 @@ export function createBillingApi({ store }) {
       return send(res, 503, { success: false, error: 'Billing persistence is not configured.' });
     }
     const state = await store.getBillingState(user.id);
+    const freeGeneration = typeof store.getFreeGenerationStatus === 'function'
+      ? await store.getFreeGenerationStatus(user.id)
+      : { status: 'available', projectId: null, usedAt: null };
     const plans = Object.values(BUILDER_PLANS).map((plan) => ({
       id: plan.id,
       pricesUsdCents: plan.pricesUsdCents,
@@ -39,6 +42,7 @@ export function createBillingApi({ store }) {
       success: true,
       billing: {
         ...state,
+        freeGeneration,
         plans,
         paymentsEnabled: false,
         renewalEnabled: false,
