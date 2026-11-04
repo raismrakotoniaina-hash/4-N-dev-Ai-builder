@@ -42,7 +42,8 @@ export function createBuilderServer({
   const creditQuoteApi = createCreditQuoteApi({ store, coreApiKey, builderCreditsChargingEnabled });
   const generationApi = createGenerationApi({ store, fetchImpl, coreApiUrl, coreApiKey, buildValidator, builderCreditsChargingEnabled });
   const buildValidationApi = createBuildValidationApi({ store, buildValidator });
-  return createServer(async (req, res) => {
+  return createServer((req, res) => {
+    const handleRequest = async () => {
     const origin = req.headers.origin;
 
     if (origin && !allowedOrigins.has(origin)) {
@@ -110,6 +111,33 @@ export function createBuilderServer({
     if (handled !== false) return;
 
     return json(res, 404, { success: false, error: 'Endpoint not found.' });
+    };
+
+    void handleRequest().catch((error) => {
+      if (res.destroyed) return;
+      if (res.headersSent) {
+        res.destroy();
+        return;
+      }
+
+      let pathname = '/';
+      try {
+        pathname = new URL(req.url || '/', 'http://localhost').pathname;
+      } catch {}
+
+      console.error('[builder-request-error]', {
+        method: req.method || 'GET',
+        pathname,
+        errorName: typeof error?.name === 'string' ? error.name : 'Error',
+        code: typeof error?.code === 'string' ? error.code.slice(0, 80) : undefined
+      });
+
+      try {
+        json(res, 500, { success: false, error: 'An internal server error occurred.' });
+      } catch {
+        res.destroy();
+      }
+    });
   });
 }
 
