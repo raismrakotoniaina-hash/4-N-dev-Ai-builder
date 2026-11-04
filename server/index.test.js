@@ -38,6 +38,29 @@ test('health endpoint reports the Builder backend without exposing secrets', asy
   });
 });
 
+test('contains unexpected asynchronous route failures and keeps the server available', async (t) => {
+  const store = {
+    getUserForSession: async () => {
+      const error = new Error('database credentials must not be exposed');
+      error.code = 'ECONNRESET';
+      throw error;
+    }
+  };
+  const baseUrl = await withServer(t, { store });
+
+  const failed = await fetch(`${baseUrl}/api/auth/me`);
+  assert.equal(failed.status, 500);
+  const payload = await failed.json();
+  assert.deepEqual(payload, {
+    success: false,
+    error: 'An internal server error occurred.'
+  });
+  assert.doesNotMatch(JSON.stringify(payload), /database credentials|ECONNRESET/i);
+
+  const health = await fetch(`${baseUrl}/health`);
+  assert.equal(health.status, 200);
+});
+
 test('model endpoint returns only the four canonical Core models', async (t) => {
   const baseUrl = await withServer(t, {
     fetchImpl: async () => new Response(JSON.stringify(catalogue), {

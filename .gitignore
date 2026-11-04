@@ -4,6 +4,9 @@ node_modules/
 # Production build
 dist/
 
+# TypeScript incremental build cache
+*.tsbuildinfo
+
 # Local environment files
 .env
 .env.local
