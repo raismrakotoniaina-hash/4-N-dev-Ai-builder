@@ -26,7 +26,7 @@ test('applies Builder migrations transactionally and records applied names', asy
     }
   };
   const first = await runMigrations(pool);
-  assert.deepEqual(first, ['001_initial_builder_schema.sql', '002_builder_billing_credits.sql', '003_builder_billing_durations.sql', '004_builder_dual_credit_pools.sql', '005_builder_generation_reservations_and_core_usage.sql', '006_builder_one_time_free_core_generation.sql']);
+  assert.deepEqual(first, ['001_initial_builder_schema.sql', '002_builder_billing_credits.sql', '003_builder_billing_durations.sql', '004_builder_dual_credit_pools.sql', '005_builder_generation_reservations_and_core_usage.sql', '006_builder_one_time_free_core_generation.sql', '007_builder_billing_constraint_cleanup.sql']);
   assert.ok(executed.some((sql) => sql.includes('CREATE TABLE IF NOT EXISTS builder_users')));
   assert.ok(executed.some((sql) => sql.includes('CREATE TABLE IF NOT EXISTS builder_project_files')));
   assert.ok(executed.some((sql) => sql.includes('CREATE TABLE IF NOT EXISTS builder_subscriptions')));
